@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+started_at=$SECONDS
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$repo_root"
+
+echo "[setup] Preparing Rust toolchain"
+
+if ! command -v curl >/dev/null 2>&1; then
+  apt-get update
+  apt-get install -y curl ca-certificates
+fi
+
+if [[ ! -x "$HOME/.cargo/bin/rustup" ]]; then
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+    | sh -s -- -y --profile minimal --default-toolchain stable
+fi
+
+# Make the toolchain available to this script. rustup's installer cannot
+# modify the environment of the process that launched it.
+# shellcheck disable=SC1091
+source "$HOME/.cargo/env"
+
+rustup toolchain install stable --profile minimal --component rustfmt --component clippy
+rustup default stable
+
+profile_marker="# lastofus-axum-api Rust toolchain"
+if ! grep -Fqx "$profile_marker" "$HOME/.bash_profile" 2>/dev/null; then
+  cat >> "$HOME/.bash_profile" <<'EOF'
+
+# lastofus-axum-api Rust toolchain
+if [[ -f "$HOME/.cargo/env" ]]; then
+  source "$HOME/.cargo/env"
+fi
+EOF
+fi
+
+echo "[setup] Fetching Cargo dependencies"
+if [[ -f Cargo.lock ]]; then
+  cargo fetch --locked
+else
+  cargo fetch
+fi
+
+echo "[setup] Complete in $((SECONDS - started_at))s"
