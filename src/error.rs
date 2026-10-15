@@ -79,6 +79,15 @@ impl IntoResponse for AppError {
     }
 }
 
+/// Database errors are logged and reported to clients as a generic 500 so no
+/// internal details leak.
+impl From<turso::Error> for AppError {
+    fn from(err: turso::Error) -> Self {
+        tracing::error!(error = %err, "database error");
+        Self::Internal
+    }
+}
+
 impl From<PathRejection> for AppError {
     fn from(rejection: PathRejection) -> Self {
         Self::bad_request("invalid_path_parameter", rejection.body_text())

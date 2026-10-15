@@ -1,23 +1,14 @@
-use std::sync::Arc;
+use crate::db::Db;
 
-use crate::{
-    fixtures,
-    models::{Episode, Season},
-};
-
-/// Shared, read-only application state. Cloning is cheap because the data
-/// lives behind an `Arc`. In Phase 3 this will hold an `SqlitePool` instead.
+/// Shared application state. Cloning is cheap: `Db` is a handle, and each
+/// request opens its own connection from it.
 #[derive(Clone)]
 pub struct AppState {
-    pub seasons: Arc<[Season]>,
-    pub episodes: Arc<[Episode]>,
+    pub db: Db,
 }
 
 impl AppState {
-    pub fn from_fixtures() -> Self {
-        Self {
-            seasons: fixtures::seasons().into(),
-            episodes: fixtures::episodes().into(),
-        }
+    pub fn new(db: Db) -> Self {
+        Self { db }
     }
 }

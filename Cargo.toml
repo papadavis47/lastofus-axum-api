@@ -2,6 +2,7 @@
 name = "lastofus-axum-api"
 version = "0.1.0"
 edition = "2024"
+default-run = "lastofus-axum-api"
 
 [dependencies]
 axum = { version = "0.8", features = ["macros"] }
@@ -11,6 +12,7 @@ tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "signal
 tower-http = { version = "0.6", features = ["trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+turso = { version = "0.8.3", default-features = false, features = ["sync"] }
 
 [dev-dependencies]
 http-body-util = "0.1"

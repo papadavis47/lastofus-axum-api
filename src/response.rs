@@ -28,8 +28,8 @@ pub struct Paginated<T> {
 pub struct PageMeta {
     pub page: u32,
     pub limit: u32,
-    pub total: usize,
-    pub total_pages: usize,
+    pub total: u64,
+    pub total_pages: u64,
 }
 
 /// `?page=&limit=` query parameters shared by every collection endpoint.
@@ -66,20 +66,21 @@ impl Pagination {
         Ok(self)
     }
 
-    /// Slices an already-filtered collection into the requested page.
-    /// Pages past the end return an empty `data` array, not an error.
-    pub fn paginate<T: Clone>(self, items: &[T]) -> Paginated<T> {
-        let limit = self.limit as usize;
-        let start = (self.page as usize - 1).saturating_mul(limit);
-        let data = items.iter().skip(start).take(limit).cloned().collect();
+    /// Rows to skip for this page, for SQL `OFFSET`.
+    pub fn offset(self) -> i64 {
+        (i64::from(self.page) - 1) * i64::from(self.limit)
+    }
 
+    /// Wraps one page of results with metadata. `total` counts every matching
+    /// row, not just this page. Pages past the end have empty `data`.
+    pub fn page<T>(self, data: Vec<T>, total: u64) -> Paginated<T> {
         Paginated {
             data,
             meta: PageMeta {
                 page: self.page,
                 limit: self.limit,
-                total: items.len(),
-                total_pages: items.len().div_ceil(limit),
+                total,
+                total_pages: total.div_ceil(u64::from(self.limit)),
             },
         }
     }

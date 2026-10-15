@@ -3,9 +3,9 @@
 
 pub mod app;
 pub mod config;
+pub mod db;
 pub mod error;
 pub mod extract;
-pub mod fixtures;
 pub mod models;
 pub mod response;
 pub mod routes;

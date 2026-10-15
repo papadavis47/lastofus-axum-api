@@ -1,10 +1,13 @@
 use axum::{Json, extract::State};
+use turso::Connection;
 
 use crate::{
+    db,
     error::AppError,
     extract::{ApiPath, ApiQuery},
     models::{Episode, Season},
     response::{ApiResponse, Paginated, Pagination},
+    routes::episodes,
     state::AppState,
 };
 
@@ -12,15 +15,31 @@ pub async fn list_seasons(
     State(state): State<AppState>,
     ApiQuery(pagination): ApiQuery<Pagination>,
 ) -> Result<Json<Paginated<Season>>, AppError> {
-    Ok(Json(pagination.validate()?.paginate(&state.seasons)))
+    let pagination = pagination.validate()?;
+    let conn = state.db.connect().await?;
+
+    let total = db::count(&conn, "SELECT COUNT(*) FROM seasons", ()).await?;
+    let seasons = db::query_all(
+        &conn,
+        &format!(
+            "SELECT {} FROM seasons ORDER BY number LIMIT ?1 OFFSET ?2",
+            Season::COLUMNS
+        ),
+        (pagination.limit, pagination.offset()),
+        Season::from_row,
+    )
+    .await?;
+
+    Ok(Json(pagination.page(seasons, total)))
 }
 
 pub async fn get_season(
     State(state): State<AppState>,
     ApiPath(season_number): ApiPath<u32>,
 ) -> Result<Json<ApiResponse<Season>>, AppError> {
-    let season = find_season(&state, season_number)?;
-    Ok(Json(ApiResponse::new(season.clone())))
+    let conn = state.db.connect().await?;
+    let season = find_season(&conn, season_number).await?;
+    Ok(Json(ApiResponse::new(season)))
 }
 
 pub async fn list_season_episodes(
@@ -29,26 +48,26 @@ pub async fn list_season_episodes(
     ApiQuery(pagination): ApiQuery<Pagination>,
 ) -> Result<Json<Paginated<Episode>>, AppError> {
     let pagination = pagination.validate()?;
-    let season = find_season(&state, season_number)?;
-    let episodes: Vec<Episode> = state
-        .episodes
-        .iter()
-        .filter(|episode| episode.season_id == season.id)
-        .cloned()
-        .collect();
+    let conn = state.db.connect().await?;
 
-    Ok(Json(pagination.paginate(&episodes)))
+    find_season(&conn, season_number).await?;
+    let page = episodes::fetch_page(&conn, Some(season_number), pagination).await?;
+
+    Ok(Json(page))
 }
 
-fn find_season(state: &AppState, season_number: u32) -> Result<&Season, AppError> {
-    state
-        .seasons
-        .iter()
-        .find(|season| season.number == season_number)
-        .ok_or_else(|| {
-            AppError::not_found(
-                "season_not_found",
-                format!("Season {season_number} was not found."),
-            )
-        })
+async fn find_season(conn: &Connection, season_number: u32) -> Result<Season, AppError> {
+    db::query_optional(
+        conn,
+        &format!("SELECT {} FROM seasons WHERE number = ?1", Season::COLUMNS),
+        (season_number,),
+        Season::from_row,
+    )
+    .await?
+    .ok_or_else(|| {
+        AppError::not_found(
+            "season_not_found",
+            format!("Season {season_number} was not found."),
+        )
+    })
 }
