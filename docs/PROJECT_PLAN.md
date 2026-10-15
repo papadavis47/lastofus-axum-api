@@ -7,9 +7,10 @@ _Last updated: 2026-10-15_
 | Phase | Status |
 |---|---|
 | 1 — Axum foundation | ✅ Done |
-| 2 — Static API prototype | ✅ Done (seasons and episodes served from in-memory fixtures) |
-| 3 — SQLite persistence | ⏭️ Next |
-| 4–6 | Not started |
+| 2 — Static API prototype | ✅ Done |
+| 3 — Turso persistence | ✅ Done (seasons 1–2 and all 16 episodes, verified) |
+| 4 — Developer experience | ⏭️ Next |
+| 5–6 | Not started |
 
 See [`AGENTS.md`](../AGENTS.md) for the live endpoint list, code layout, and known gaps.
 
@@ -183,13 +184,13 @@ Conventions:
 - Rust 2024 edition
 - Axum and Tokio
 - Serde and `serde_json`
-- SQLite for the first release
-- SQLx for asynchronous database access and explicit SQL
+- [Turso Database](https://docs.turso.tech/tursodb/quickstart) (SQLite-compatible, written in Rust) through the `turso` crate, with explicit SQL
+- Turso Cloud for production, reached as a synced local replica (`turso::sync`)
 - `tower-http` for CORS, tracing, compression, and request IDs
 - `tracing` and `tracing-subscriber` for structured logs
 - `thiserror` for typed application errors
 
-SQLite keeps local development and deployment simple for a mostly static dataset. PostgreSQL can be considered later if operational needs justify it.
+Turso keeps the simplicity of SQLite for a mostly static dataset: development and tests use an embedded database file or `:memory:` with no server or account, while production reads from a local replica that pulls from Turso Cloud. SQLx was the original plan but has no Turso driver, so queries are written against the `turso` crate directly and migrations use a small built-in runner. The Turso engine is pre-1.0 (0.8.x); libSQL with the `libsql` crate is the conservative fallback if it causes problems.
 
 ### Source layout
 
@@ -200,12 +201,13 @@ src/
 ├── lib.rs          # library crate; integration tests import from here
 ├── main.rs         # thin binary: logging, config, serve, graceful shutdown
 ├── app.rs          # router construction
-├── config.rs       # environment configuration (PORT)
+├── config.rs       # environment configuration (PORT, DATABASE_PATH, TURSO_*)
 ├── error.rs        # AppError and the structured error body
 ├── extract.rs      # ApiPath / ApiQuery extractors that reject with AppError
 ├── response.rs     # ApiResponse, Paginated, Pagination
 ├── state.rs        # AppState shared with handlers
-├── fixtures.rs     # Phase 2 in-memory data; removed in Phase 3
+├── bin/
+│   └── migrate.rs  # applies migrations; pushes to Turso Cloud in synced mode
 ├── models/
 │   ├── season.rs
 │   ├── episode.rs
@@ -217,15 +219,16 @@ src/
 │   ├── episodes.rs
 │   ├── characters.rs    (planned)
 │   └── cast.rs          (planned)
-└── db/                  (planned, Phase 3)
-    └── mod.rs
+└── db/
+    ├── mod.rs           # Db (local or synced), connections, query helpers
+    └── migrations.rs    # embedded migration list and runner
 
-migrations/              (planned, Phase 3)
+migrations/              # numbered .sql files: schema, then seed data
 tests/
 └── api.rs
 ```
 
-The initial implementation should avoid unnecessary enterprise-style layers. Handlers may query the database through a shared `SqlitePool` in `AppState`. Additional service or repository abstractions should only be introduced when they remove real complexity.
+The initial implementation should avoid unnecessary enterprise-style layers. Handlers query the database directly through the `Db` handle in `AppState`, opening one connection per request. Additional service or repository abstractions should only be introduced when they remove real complexity.
 
 ## Data sourcing and attribution
 
@@ -276,11 +279,11 @@ Learning focus: routers, handlers, Tokio, responses, and HTTP status codes.
 
 Learning focus: Serde, extractors, filtering, and Rust ownership.
 
-Delivered: both seasons and Season 1's nine episodes as fixtures, `?season=` filtering, pagination (`page` ≥ 1, `limit` 1–100, default 20), and structured `400`/`404` errors for invalid path, query, and pagination input. Pagination landed here rather than in Phase 3 so the response shape is settled before database work. The fixture values were entered without source verification; check them before they become the Phase 3 seed.
+Delivered: both seasons and Season 1's nine episodes as fixtures, `?season=` filtering, pagination (`page` ≥ 1, `limit` 1–100, default 20), and structured `400`/`404` errors for invalid path, query, and pagination input. Pagination landed here rather than in Phase 3 so the response shape is settled before database work. The fixture values were later verified for the Phase 3 seed (episode 9 gained Neil Druckmann as co-writer), and the fixtures were removed.
 
-### Phase 3 — SQLite persistence (next)
+### Phase 3 — Turso persistence ✅
 
-- Add SQLx and database migrations.
+- Add Turso and database migrations.
 - Create normalized tables and foreign keys.
 - Seed a small, verified dataset.
 - Replace fixtures with database queries.
@@ -288,7 +291,9 @@ Delivered: both seasons and Season 1's nine episodes as fixtures, `?season=` fil
 
 Learning focus: asynchronous SQL, application state, joins, and migrations.
 
-### Phase 4 — Developer experience
+Delivered: the `turso` crate in place of SQLx, embedded migrations with a `migrate` binary, normalized `seasons`, `episodes`, and `episode_writers` tables with foreign keys and provenance columns, and a seed of seasons 1–2 (16 episodes) verified against Wikipedia on 2026-10-15. Filtering and pagination run in SQL. Production reads from a Turso Cloud replica, and tests use a fresh in-memory database each.
+
+### Phase 4 — Developer experience (next)
 
 - Publish an OpenAPI specification and interactive documentation.
 - Add `curl`, JavaScript, Python, and Rust examples.
@@ -330,7 +335,7 @@ Axum routers implement Tower services, so most integration tests can execute req
 - `/health` endpoint
 - Versioned `/api/v1` routes
 - Season and episode list/detail endpoints
-- Small SQLite seed dataset
+- Small, verified Turso seed dataset
 - Filtering and pagination
 - Consistent structured errors
 - CORS configuration
