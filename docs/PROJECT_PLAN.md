@@ -1,5 +1,18 @@
 # The Last of Us REST API — Project Plan
 
+## Current status
+
+_Last updated: 2026-10-15_
+
+| Phase | Status |
+|---|---|
+| 1 — Axum foundation | ✅ Done |
+| 2 — Static API prototype | ✅ Done (seasons and episodes served from in-memory fixtures) |
+| 3 — SQLite persistence | ⏭️ Next |
+| 4–6 | Not started |
+
+See [`AGENTS.md`](../AGENTS.md) for the live endpoint list, code layout, and known gaps.
+
 ## Vision
 
 Build an unofficial, educational REST API containing curated factual information about HBO's *The Last of Us* television series. The API is intended for students and beginner-to-intermediate developers who want to practice consuming a realistic API while the project itself provides an opportunity to learn Rust and the [Axum](https://docs.rs/axum/latest/axum/) framework.
@@ -178,31 +191,38 @@ Conventions:
 
 SQLite keeps local development and deployment simple for a mostly static dataset. PostgreSQL can be considered later if operational needs justify it.
 
-### Proposed source layout
+### Source layout
+
+Files marked _(planned)_ do not exist yet.
 
 ```text
 src/
-├── main.rs
-├── app.rs
-├── config.rs
-├── error.rs
-├── state.rs
+├── lib.rs          # library crate; integration tests import from here
+├── main.rs         # thin binary: logging, config, serve, graceful shutdown
+├── app.rs          # router construction
+├── config.rs       # environment configuration (PORT)
+├── error.rs        # AppError and the structured error body
+├── extract.rs      # ApiPath / ApiQuery extractors that reject with AppError
+├── response.rs     # ApiResponse, Paginated, Pagination
+├── state.rs        # AppState shared with handlers
+├── fixtures.rs     # Phase 2 in-memory data; removed in Phase 3
 ├── models/
 │   ├── season.rs
 │   ├── episode.rs
-│   ├── character.rs
-│   └── cast_member.rs
+│   ├── character.rs     (planned)
+│   └── cast_member.rs   (planned)
 ├── routes/
 │   ├── health.rs
 │   ├── seasons.rs
 │   ├── episodes.rs
-│   ├── characters.rs
-│   └── cast.rs
-└── db/
+│   ├── characters.rs    (planned)
+│   └── cast.rs          (planned)
+└── db/                  (planned, Phase 3)
     └── mod.rs
 
-migrations/
+migrations/              (planned, Phase 3)
 tests/
+└── api.rs
 ```
 
 The initial implementation should avoid unnecessary enterprise-style layers. Handlers may query the database through a shared `SqlitePool` in `AppState`. Additional service or repository abstractions should only be introduced when they remove real complexity.
@@ -238,7 +258,7 @@ The MVP can return `null` for image fields until suitable licensed material is a
 
 ## Delivery roadmap
 
-### Phase 1 — Axum foundation
+### Phase 1 — Axum foundation ✅
 
 - Start the Axum server.
 - Add `/health` and basic JSON responses.
@@ -247,7 +267,7 @@ The MVP can return `null` for image fields until suitable licensed material is a
 
 Learning focus: routers, handlers, Tokio, responses, and HTTP status codes.
 
-### Phase 2 — Static API prototype
+### Phase 2 — Static API prototype ✅
 
 - Add a small set of seasons and episodes as fixtures.
 - Implement list and detail endpoints.
@@ -256,7 +276,9 @@ Learning focus: routers, handlers, Tokio, responses, and HTTP status codes.
 
 Learning focus: Serde, extractors, filtering, and Rust ownership.
 
-### Phase 3 — SQLite persistence
+Delivered: both seasons and Season 1's nine episodes as fixtures, `?season=` filtering, pagination (`page` ≥ 1, `limit` 1–100, default 20), and structured `400`/`404` errors for invalid path, query, and pagination input. Pagination landed here rather than in Phase 3 so the response shape is settled before database work. The fixture values were entered without source verification; check them before they become the Phase 3 seed.
+
+### Phase 3 — SQLite persistence (next)
 
 - Add SQLx and database migrations.
 - Create normalized tables and foreign keys.
