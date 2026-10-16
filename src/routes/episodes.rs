@@ -42,8 +42,9 @@ pub async fn get_episode(
     let episode = db::query_optional(
         &conn,
         &format!(
-            "SELECT {} FROM episodes e WHERE e.id = ?1",
-            Episode::COLUMNS
+            "SELECT {} FROM {} WHERE e.id = ?1",
+            Episode::COLUMNS,
+            Episode::FROM
         ),
         (id,),
         Episode::from_row,
@@ -67,14 +68,16 @@ pub async fn fetch_page(
     season_number: Option<u32>,
     pagination: Pagination,
 ) -> Result<Paginated<Episode>, AppError> {
-    const FILTER: &str = "FROM episodes e JOIN seasons s ON s.id = e.season_id \
-                          WHERE (?1 IS NULL OR s.number = ?1)";
+    let filter = format!(
+        "FROM {} JOIN seasons s ON s.id = e.season_id WHERE (?1 IS NULL OR s.number = ?1)",
+        Episode::FROM
+    );
 
-    let total = db::count(conn, &format!("SELECT COUNT(*) {FILTER}"), (season_number,)).await?;
+    let total = db::count(conn, &format!("SELECT COUNT(*) {filter}"), (season_number,)).await?;
     let mut episodes = db::query_all(
         conn,
         &format!(
-            "SELECT {} {FILTER} ORDER BY e.overall_number LIMIT ?2 OFFSET ?3",
+            "SELECT {} {filter} ORDER BY e.overall_number LIMIT ?2 OFFSET ?3",
             Episode::COLUMNS
         ),
         (season_number, pagination.limit, pagination.offset()),

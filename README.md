@@ -45,7 +45,8 @@ curl http://localhost:3000/api/v1/episodes/1
     "director": "Craig Mazin",
     "writers": ["Craig Mazin", "Neil Druckmann"],
     "viewer_count_millions": null,
-    "image_url": null
+    "image": null,
+    "external_ids": { "tmdb": null, "imdb": null, "wikidata": null }
   }
 }
 ```
@@ -103,7 +104,9 @@ Errors always use the same JSON shape, with an HTTP status, a machine-readable `
 ### Conventions
 
 - Dates are ISO 8601 (`2023-01-15`).
-- Unknown values are `null`, never empty strings. For example, `viewer_count_millions` and `image_url` are `null` until reliable figures and properly licensed images are available.
+- Unknown values are `null`, never empty strings. For example, `viewer_count_millions` and `image` are `null` until reliable figures and properly licensed images are available.
+- Seasons and episodes have an `image` field. When it's set, it's an object with `url`, `width`, `height`, `alt` and an `attribution` object (`text`, `creator`, `license`, `license_url`, `source_url`). If you display the image, show its `attribution.text`; the image's licence requires it.
+- `external_ids` holds the matching `tmdb`, `imdb` and `wikidata` ids, so you can fetch artwork from those services yourself, under their terms. This API only serves images it is allowed to redistribute.
 
 ## Configuration
 

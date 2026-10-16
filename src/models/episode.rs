@@ -1,6 +1,8 @@
 use serde::Serialize;
 use turso::Row;
 
+use super::{ExternalIds, Image, image::image_columns};
+
 #[derive(Debug, Clone, Serialize)]
 pub struct Episode {
     pub id: i64,
@@ -17,15 +19,21 @@ pub struct Episode {
     /// In credited order. Loaded separately from `episode_writers`.
     pub writers: Vec<String>,
     pub viewer_count_millions: Option<f64>,
-    pub image_url: Option<String>,
+    pub image: Option<Image>,
+    pub external_ids: ExternalIds,
 }
 
 impl Episode {
-    /// Columns (on the `episodes` table aliased as `e`) in the order
-    /// `from_row` reads them.
-    pub const COLUMNS: &str = "e.id, e.season_id, e.number_in_season, e.overall_number, \
+    /// Tables to select `COLUMNS` from: `episodes` as `e`, joined to its image.
+    pub const FROM: &str = "episodes e LEFT JOIN images i ON i.id = e.image_id";
+
+    /// Columns in the order `from_row` reads them.
+    pub const COLUMNS: &str = concat!(
+        "e.id, e.season_id, e.number_in_season, e.overall_number, \
          e.title, e.slug, e.summary, e.runtime_minutes, e.release_date, e.director, \
-         e.viewer_count_millions, e.image_url";
+         e.viewer_count_millions, e.tmdb_id, e.imdb_id, e.wikidata_id, ",
+        image_columns!()
+    );
 
     /// Builds an episode with empty `writers`; callers fill them in.
     pub fn from_row(row: &Row) -> turso::Result<Self> {
@@ -42,7 +50,8 @@ impl Episode {
             director: row.get(9)?,
             writers: Vec::new(),
             viewer_count_millions: row.get(10)?,
-            image_url: row.get(11)?,
+            external_ids: ExternalIds::from_row(row, 11)?,
+            image: Image::from_row(row, 14)?,
         })
     }
 }

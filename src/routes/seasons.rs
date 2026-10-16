@@ -22,8 +22,9 @@ pub async fn list_seasons(
     let seasons = db::query_all(
         &conn,
         &format!(
-            "SELECT {} FROM seasons ORDER BY number LIMIT ?1 OFFSET ?2",
-            Season::COLUMNS
+            "SELECT {} FROM {} ORDER BY s.number LIMIT ?1 OFFSET ?2",
+            Season::COLUMNS,
+            Season::FROM
         ),
         (pagination.limit, pagination.offset()),
         Season::from_row,
@@ -59,7 +60,11 @@ pub async fn list_season_episodes(
 async fn find_season(conn: &Connection, season_number: u32) -> Result<Season, AppError> {
     db::query_optional(
         conn,
-        &format!("SELECT {} FROM seasons WHERE number = ?1", Season::COLUMNS),
+        &format!(
+            "SELECT {} FROM {} WHERE s.number = ?1",
+            Season::COLUMNS,
+            Season::FROM
+        ),
         (season_number,),
         Season::from_row,
     )

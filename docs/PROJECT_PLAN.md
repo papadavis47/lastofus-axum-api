@@ -2,14 +2,14 @@
 
 ## Current status
 
-_Last updated: 2026-10-15_
+_Last updated: 2026-10-16_
 
 | Phase | Status |
 |---|---|
 | 1 — Axum foundation | ✅ Done |
 | 2 — Static API prototype | ✅ Done |
 | 3 — Turso persistence | ✅ Done (seasons 1–2 and all 16 episodes, verified) |
-| 4 — Developer experience | ⏭️ Next |
+| 4 — Developer experience | ⏭️ Next (image schema and `image`/`external_ids` response fields landed first, in migration 0003) |
 | 5–6 | Not started |
 
 See [`AGENTS.md`](../AGENTS.md) for the live endpoint list, code layout, and known gaps.
@@ -89,6 +89,8 @@ Human-facing resources should use URL-safe slugs such as `ellie-williams`. Numer
 - `release_year`
 - `episode_count`
 - `summary`
+- `image` (optional, see "Image policy")
+- `external_ids` (`tmdb`, `imdb`, `wikidata`)
 
 ### Episode
 
@@ -104,7 +106,8 @@ Human-facing resources should use URL-safe slugs such as `ellie-williams`. Numer
 - `director`
 - `writers`
 - `viewer_count_millions` (optional)
-- `image_url` (optional)
+- `image` (optional, see "Image policy")
+- `external_ids` (`tmdb`, `imdb`, `wikidata`)
 
 ### Character
 
@@ -258,6 +261,10 @@ Store attribution alongside every image:
 - `attribution_text`
 
 The MVP can return `null` for image fields until suitable licensed material is available. It should not bundle HBO promotional stills, posters, logos, character artwork, or screenshots without permission.
+
+Being non-commercial doesn't make those uses legal. Wikipedia's posters and title cards are non-free files used under Wikipedia's own per-article fair-use rationale, which doesn't extend to this API. TMDB's licence is non-transferable and can't be sublicensed, so the API must not pass TMDB images through to its users.
+
+**Implementation (migration 0003).** Images live in an `images` table with `url`, `width`, `height`, `alt_text`, `source_page_url`, `creator`, `license_name`, `license_url`, `attribution_text` and `last_verified_at`. Resources point to them through a nullable `image_id`. The API returns an `image` object carrying its attribution, never a bare URL. Resources also expose `external_ids` (TMDB, IMDb, Wikidata) so clients can fetch artwork from those services under their own terms. Likely first images: freely licensed Commons photos of cast members, once the cast tables exist.
 
 ## Delivery roadmap
 

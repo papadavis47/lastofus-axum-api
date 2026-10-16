@@ -24,6 +24,11 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "seed_seasons_1_and_2",
         sql: include_str!("../../migrations/0002_seed_seasons_1_and_2.sql"),
     },
+    Migration {
+        version: 3,
+        name: "images_and_external_ids",
+        sql: include_str!("../../migrations/0003_images_and_external_ids.sql"),
+    },
 ];
 
 /// Applies every pending migration, each in its own transaction, and returns

@@ -1,6 +1,8 @@
 use serde::Serialize;
 use turso::Row;
 
+use super::{ExternalIds, Image, image::image_columns};
+
 #[derive(Debug, Clone, Serialize)]
 pub struct Season {
     pub id: i64,
@@ -9,11 +11,20 @@ pub struct Season {
     pub release_year: i64,
     pub episode_count: i64,
     pub summary: String,
+    pub image: Option<Image>,
+    pub external_ids: ExternalIds,
 }
 
 impl Season {
+    /// Tables to select `COLUMNS` from: `seasons` as `s`, joined to its image.
+    pub const FROM: &str = "seasons s LEFT JOIN images i ON i.id = s.image_id";
+
     /// Columns in the order `from_row` reads them.
-    pub const COLUMNS: &str = "id, number, title, release_year, episode_count, summary";
+    pub const COLUMNS: &str = concat!(
+        "s.id, s.number, s.title, s.release_year, s.episode_count, s.summary, \
+         s.tmdb_id, s.imdb_id, s.wikidata_id, ",
+        image_columns!()
+    );
 
     pub fn from_row(row: &Row) -> turso::Result<Self> {
         Ok(Self {
@@ -23,6 +34,8 @@ impl Season {
             release_year: row.get(3)?,
             episode_count: row.get(4)?,
             summary: row.get(5)?,
+            external_ids: ExternalIds::from_row(row, 6)?,
+            image: Image::from_row(row, 9)?,
         })
     }
 }

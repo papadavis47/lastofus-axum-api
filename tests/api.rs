@@ -87,6 +87,7 @@ async fn gets_a_season_by_number() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["data"]["number"], 1);
     assert_eq!(body["data"]["release_year"], 2023);
+    assert_eq!(body["data"]["image"], Value::Null);
 }
 
 #[tokio::test]
@@ -125,7 +126,72 @@ async fn gets_an_episode_by_id() {
         json!(["Craig Mazin", "Neil Druckmann"])
     );
     // Unknown values are null, never empty strings.
-    assert_eq!(body["data"]["image_url"], Value::Null);
+    assert_eq!(body["data"]["image"], Value::Null);
+    assert_eq!(
+        body["data"]["external_ids"],
+        json!({"tmdb": null, "imdb": null, "wikidata": null})
+    );
+    assert!(body["data"].get("image_url").is_none());
+}
+
+#[tokio::test]
+async fn returns_images_with_attribution() {
+    let db = test_db().await;
+    let conn = db.connect().await.unwrap();
+    conn.execute_batch(
+        "INSERT INTO images (id, url, width, height, alt_text, source_page_url, creator, \
+             license_name, license_url, attribution_text, last_verified_at) VALUES \
+             (1, 'https://example.org/still.jpg', 800, 450, 'A test image', \
+              'https://example.org/still', 'Jane Doe', 'CC BY 4.0', \
+              'https://creativecommons.org/licenses/by/4.0/', \
+              'Photo by Jane Doe, CC BY 4.0', '2026-10-16'), \
+             (2, 'https://example.org/public-domain.jpg', NULL, NULL, 'Another test image', \
+              'https://example.org/public-domain', NULL, 'Public domain', NULL, \
+              'Public domain', '2026-10-16'); \
+         UPDATE episodes SET image_id = 1, tmdb_id = 42, imdb_id = 'tt0000001' WHERE id = 3; \
+         UPDATE seasons SET image_id = 2, wikidata_id = 'Q1' WHERE number = 2;",
+    )
+    .await
+    .unwrap();
+
+    let (status, body) = get_with(db.clone(), "/api/v1/episodes/3").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        body["data"]["image"],
+        json!({
+            "url": "https://example.org/still.jpg",
+            "width": 800,
+            "height": 450,
+            "alt": "A test image",
+            "attribution": {
+                "text": "Photo by Jane Doe, CC BY 4.0",
+                "creator": "Jane Doe",
+                "license": "CC BY 4.0",
+                "license_url": "https://creativecommons.org/licenses/by/4.0/",
+                "source_url": "https://example.org/still"
+            }
+        })
+    );
+    assert_eq!(
+        body["data"]["external_ids"],
+        json!({"tmdb": 42, "imdb": "tt0000001", "wikidata": null})
+    );
+
+    // Lists join images too, and leave episodes without one as null.
+    let (_, body) = get_with(db.clone(), "/api/v1/seasons/1/episodes").await;
+    let episodes = body["data"].as_array().unwrap();
+    assert_eq!(episodes[2]["image"]["url"], "https://example.org/still.jpg");
+    assert_eq!(episodes[3]["image"], Value::Null);
+
+    let (_, body) = get_with(db, "/api/v1/seasons").await;
+    let seasons = body["data"].as_array().unwrap();
+    assert_eq!(seasons[0]["image"], Value::Null);
+    assert_eq!(seasons[1]["image"]["attribution"]["creator"], Value::Null);
+    assert_eq!(
+        seasons[1]["image"]["attribution"]["license"],
+        "Public domain"
+    );
+    assert_eq!(seasons[1]["external_ids"]["wikidata"], "Q1");
 }
 
 #[tokio::test]
@@ -261,7 +327,7 @@ async fn pending_migrations_are_reported_without_writing() {
     let db = Db::in_memory().await.unwrap();
     let conn = db.connect().await.unwrap();
 
-    assert_eq!(migrations::pending(&conn).await.unwrap(), [1, 2]);
+    assert_eq!(migrations::pending(&conn).await.unwrap(), [1, 2, 3]);
 
     // `pending` must not create `_migrations`: servers call it on read-only replicas.
     let mut rows = conn
