@@ -64,6 +64,8 @@ curl http://localhost:3000/api/v1/episodes/1
 
 All public routes are versioned under `/api/v1`.
 
+CORS is open: any website can call the API from the browser with `fetch`. Responses (errors included) send `Access-Control-Allow-Origin: *`, and only `GET` and `HEAD` are allowed. The API doesn't use cookies or credentials, so don't send them.
+
 ### Pagination
 
 Every list endpoint is paginated with `?page=` (default `1`) and `?limit=` (default `20`, maximum `100`):
@@ -178,7 +180,7 @@ More docs:
 | 1. Axum foundation | ✅ Done |
 | 2. Static API prototype | ✅ Done |
 | 3. Turso persistence | ✅ Done |
-| 4. Developer experience: CORS, OpenAPI docs, client examples | Next |
+| 4. Developer experience: CORS ✅, OpenAPI docs, client examples | In progress |
 | 5. Content expansion: characters, cast, search, licensed images | Planned |
 | 6. Deployment | Planned |
 

@@ -17,7 +17,7 @@ The project is not affiliated with HBO, Sony, or Naughty Dog. Do not add copyrig
 | 1 — Axum foundation | ✅ Done |
 | 2 — Static API prototype | ✅ Done |
 | 3 — Turso persistence | ✅ Done |
-| 4 — Developer experience (OpenAPI, CORS, examples) | ⏭️ **Next** |
+| 4 — Developer experience (OpenAPI, CORS, examples) | 🚧 **In progress** (CORS done) |
 | 5 — Content expansion (characters, cast, search, images) | Not started |
 | 6 — Deployment | Not started |
 
@@ -32,6 +32,8 @@ The project is not affiliated with HBO, Sony, or Naughty Dog. Do not add copyrig
 | `GET /api/v1/episodes` | Paginated; `?season=<number>` filter (an unknown season gives an empty page, not a 404) |
 | `GET /api/v1/episodes/{id}` | `404 episode_not_found` if missing |
 | anything else | `404 route_not_found` |
+
+Every response, errors included, carries `Access-Control-Allow-Origin: *`. Preflight `OPTIONS` requests are answered by the CORS layer before routing; it allows only `GET` and `HEAD`, the `Accept` and `Content-Type` headers, and caches preflights for a day. No credentials are allowed.
 
 Pagination on every collection: `?page=` (≥ 1, default 1) and `?limit=` (1–100, default 20). Pages past the end return `"data": []`. Episodes are ordered by `overall_number`; episode `id` equals `overall_number` (1–16).
 
@@ -83,7 +85,7 @@ TURSO_DATABASE_URL=http://127.0.0.1:8080 DATABASE_PATH=reader.db cargo run
 src/lib.rs             Library crate root; tests/ and src/bin/ import from here
 src/main.rs            Server binary: tracing, Config, Db::open, migrate-or-check, serve, graceful shutdown
 src/bin/migrate.rs     `cargo run --bin migrate`: apply migrations, push when synced
-src/app.rs             router(state): /health, nested /api/v1 routes, fallback, TraceLayer
+src/app.rs             router(state): /health, nested /api/v1 routes, fallback, CorsLayer, TraceLayer
 src/config.rs          Config / DatabaseConfig from env: PORT, DATABASE_PATH, TURSO_DATABASE_URL, TURSO_AUTH_TOKEN
 src/db/mod.rs          Db {Local, Synced}; connect/push; query_all, query_optional, count helpers
 src/db/migrations.rs   MIGRATIONS list; run() and pending()
@@ -131,10 +133,9 @@ Run `cargo fmt`, `cargo clippy --all-targets -- -D warnings`, and `cargo test` b
 
 ## Next steps (Phase 4: developer experience)
 
-1. **CORS:** add `tower-http`'s `cors` feature and a `CorsLayer` allowing `GET` from any origin (it's a public, read-only API). Test it in `tests/`.
-2. **OpenAPI:** generate a spec (e.g. `utoipa` + `utoipa-axum`) for every endpoint, with response and error schemas. Serve it at `/api/v1/openapi.json` with an interactive docs page.
-3. **Examples:** `curl`, JavaScript (`fetch`), Python and Rust client examples in `docs/`.
-4. **Behaviour docs:** document pagination, errors, spoiler policy and the unofficial-project disclaimer, and add a sources/attribution page or endpoint (the provenance columns already exist).
+1. **OpenAPI:** generate a spec (e.g. `utoipa` + `utoipa-axum`) for every endpoint, with response and error schemas. Serve it at `/api/v1/openapi.json` with an interactive docs page.
+2. **Examples:** `curl`, JavaScript (`fetch`), Python and Rust client examples in `docs/`.
+3. **Behaviour docs:** document pagination, errors, spoiler policy and the unofficial-project disclaimer, and add a sources/attribution page or endpoint (the provenance columns already exist).
 
 Later:
 - Characters and cast tables and endpoints (Phase 5).

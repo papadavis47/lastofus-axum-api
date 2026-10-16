@@ -10,7 +10,7 @@ axum = { version = "0.8", features = ["macros"] }
 serde = { version = "1", features = ["derive"] }
 thiserror = "2"
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "signal"] }
-tower-http = { version = "0.6", features = ["trace"] }
+tower-http = { version = "0.6", features = ["cors", "trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 turso = { version = "0.8.3", default-features = false, features = ["sync"] }

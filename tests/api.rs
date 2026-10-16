@@ -35,6 +35,23 @@ async fn get_with(db: Db, uri: &str) -> (StatusCode, Value) {
     (status, serde_json::from_slice(&body).unwrap())
 }
 
+/// Sends a request and returns the raw response, for checking headers.
+async fn send(request: Request<Body>) -> axum::response::Response {
+    router(AppState::new(test_db().await))
+        .oneshot(request)
+        .await
+        .unwrap()
+}
+
+fn header<'a>(response: &'a axum::response::Response, name: &str) -> &'a str {
+    response
+        .headers()
+        .get(name)
+        .unwrap_or_else(|| panic!("missing {name} header"))
+        .to_str()
+        .unwrap()
+}
+
 fn assert_error(body: &Value, status: u16, code: &str) {
     assert_eq!(body["error"]["status"], status);
     assert_eq!(body["error"]["code"], code);
@@ -362,4 +379,62 @@ async fn pending_migrations_are_reported_without_writing() {
         .unwrap();
     let tables: i64 = rows.next().await.unwrap().unwrap().get(0).unwrap();
     assert_eq!(tables, 0);
+}
+
+#[tokio::test]
+async fn cors_allows_any_origin_to_get() {
+    let response = send(
+        Request::get("/api/v1/episodes/1")
+            .header("origin", "https://example.com")
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(header(&response, "access-control-allow-origin"), "*");
+    // No credentials: a wildcard origin must not be combined with them.
+    assert!(
+        response
+            .headers()
+            .get("access-control-allow-credentials")
+            .is_none()
+    );
+}
+
+#[tokio::test]
+async fn cors_headers_are_sent_on_errors_too() {
+    // Browsers hide the body of a response without CORS headers, so a client
+    // couldn't read the structured error.
+    let response = send(
+        Request::get("/api/v1/episodes/99")
+            .header("origin", "https://example.com")
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    assert_eq!(header(&response, "access-control-allow-origin"), "*");
+}
+
+#[tokio::test]
+async fn cors_preflight_allows_only_reads() {
+    let response = send(
+        Request::options("/api/v1/seasons")
+            .header("origin", "https://example.com")
+            .header("access-control-request-method", "GET")
+            .header("access-control-request-headers", "content-type")
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(header(&response, "access-control-allow-origin"), "*");
+    let methods = header(&response, "access-control-allow-methods");
+    assert!(methods.contains("GET"));
+    assert!(!methods.contains("POST"));
+    assert!(header(&response, "access-control-allow-headers").contains("content-type"));
+    assert_eq!(header(&response, "access-control-max-age"), "86400");
 }
