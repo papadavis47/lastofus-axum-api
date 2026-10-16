@@ -1,16 +1,20 @@
 use serde::Serialize;
 use turso::Row;
+use utoipa::ToSchema;
 
 use super::{ExternalIds, Image, image::image_columns};
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct Season {
     pub id: i64,
+    #[schema(example = 1)]
     pub number: i64,
     pub title: String,
+    #[schema(example = 2023)]
     pub release_year: i64,
     pub episode_count: i64,
     pub summary: String,
+    #[schema(required)]
     pub image: Option<Image>,
     pub external_ids: ExternalIds,
 }

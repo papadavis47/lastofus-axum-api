@@ -1,5 +1,6 @@
 use serde::Serialize;
 use turso::Row;
+use utoipa::ToSchema;
 
 /// Columns on the `images` table aliased as `i`, in the order `Image::from_row`
 /// reads them. A macro rather than a `const` so models can `concat!` it onto
@@ -13,21 +14,25 @@ macro_rules! image_columns {
 pub(crate) use image_columns;
 
 /// A licensed image plus the attribution its licence requires.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct Image {
     pub url: String,
+    #[schema(required)]
     pub width: Option<i64>,
+    #[schema(required)]
     pub height: Option<i64>,
     pub alt: String,
     pub attribution: Attribution,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct Attribution {
     /// Ready-to-display credit line.
     pub text: String,
+    #[schema(required)]
     pub creator: Option<String>,
     pub license: String,
+    #[schema(required)]
     pub license_url: Option<String>,
     /// The page the licence was checked on.
     pub source_url: String,
@@ -58,10 +63,13 @@ impl Image {
 
 /// Ids for the same resource in other databases. API users can use them to
 /// fetch artwork from those services under their own terms.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct ExternalIds {
+    #[schema(required)]
     pub tmdb: Option<i64>,
+    #[schema(required, example = "tt11957006")]
     pub imdb: Option<String>,
+    #[schema(required, example = "Q116169494")]
     pub wikidata: Option<String>,
 }
 

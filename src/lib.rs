@@ -7,6 +7,7 @@ pub mod db;
 pub mod error;
 pub mod extract;
 pub mod models;
+pub mod openapi;
 pub mod response;
 pub mod routes;
 pub mod state;

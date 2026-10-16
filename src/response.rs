@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use utoipa::{IntoParams, ToSchema};
 
 use crate::error::AppError;
 
@@ -6,7 +7,7 @@ pub const DEFAULT_PAGE_SIZE: u32 = 20;
 pub const MAX_PAGE_SIZE: u32 = 100;
 
 /// A single resource: `{"data": ...}`.
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct ApiResponse<T> {
     pub data: T,
 }
@@ -18,25 +19,38 @@ impl<T> ApiResponse<T> {
 }
 
 /// A page of a collection: `{"data": [...], "meta": {...}}`.
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct Paginated<T> {
     pub data: Vec<T>,
     pub meta: PageMeta,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct PageMeta {
+    /// The page returned, starting at 1.
+    #[schema(example = 1)]
     pub page: u32,
+    /// Items per page.
+    #[schema(example = 20)]
     pub limit: u32,
+    /// Items matching the request across every page.
+    #[schema(example = 16)]
     pub total: u64,
+    /// Pages needed to list every item; `0` when nothing matches.
+    #[schema(example = 1)]
     pub total_pages: u64,
 }
 
 /// `?page=&limit=` query parameters shared by every collection endpoint.
-#[derive(Debug, Clone, Copy, Deserialize)]
+#[derive(Debug, Clone, Copy, Deserialize, IntoParams)]
 #[serde(default)]
+#[into_params(parameter_in = Query)]
 pub struct Pagination {
+    /// Page number, starting at 1. Pages past the end return an empty `data` array.
+    #[param(minimum = 1, default = 1)]
     pub page: u32,
+    /// Items per page.
+    #[param(minimum = 1, maximum = 100, default = 20)]
     pub limit: u32,
 }
 
