@@ -182,3 +182,7 @@ More docs:
 ## Data sources
 
 Facts are checked one at a time against public sources, mainly the Wikipedia articles for [season 1](https://en.wikipedia.org/wiki/The_Last_of_Us_season_1) and [season 2](https://en.wikipedia.org/wiki/The_Last_of_Us_season_2), and each episode's own article for its runtime. Nothing is scraped automatically, and no IMDb content is used. Summaries are original. No copyrighted promotional images are included.
+
+## License
+
+The code is released under the [MIT License](LICENSE). The license covers this project's code and original writing only. *The Last of Us* and related names belong to their respective owners.

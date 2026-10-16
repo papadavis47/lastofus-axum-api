@@ -3,6 +3,7 @@ name = "lastofus-axum-api"
 version = "0.1.0"
 edition = "2024"
 default-run = "lastofus-axum-api"
+license = "MIT"
 
 [dependencies]
 axum = { version = "0.8", features = ["macros"] }
