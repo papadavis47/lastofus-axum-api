@@ -1,35 +1,47 @@
 use std::time::Duration;
 
 use axum::{
-    Router,
+    Json,
     http::{Method, header},
+    response::Html,
     routing::get,
 };
 use tower_http::{
     cors::{Any, CorsLayer},
     trace::TraceLayer,
 };
+use utoipa::OpenApi;
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{
     error::not_found,
-    routes::{episodes, health::health, seasons},
+    openapi::{ApiDoc, DOCS_HTML},
+    routes::{episodes, health, seasons},
     state::AppState,
 };
 
-pub fn router(state: AppState) -> Router {
-    let api_v1 = Router::new()
-        .route("/seasons", get(seasons::list_seasons))
-        .route("/seasons/{season_number}", get(seasons::get_season))
-        .route(
-            "/seasons/{season_number}/episodes",
-            get(seasons::list_season_episodes),
-        )
-        .route("/episodes", get(episodes::list_episodes))
-        .route("/episodes/{id}", get(episodes::get_episode));
+pub fn router(state: AppState) -> axum::Router {
+    // `routes!` registers each handler with Axum and adds its `#[utoipa::path]`
+    // to the spec, so the two can't drift apart. Each call takes one path.
+    let api_v1 = OpenApiRouter::new()
+        .routes(routes!(seasons::list_seasons))
+        .routes(routes!(seasons::get_season))
+        .routes(routes!(seasons::list_season_episodes))
+        .routes(routes!(episodes::list_episodes))
+        .routes(routes!(episodes::get_episode));
 
-    Router::new()
-        .route("/health", get(health))
+    let (router, spec) = OpenApiRouter::with_openapi(ApiDoc::openapi())
+        .routes(routes!(health::health))
         .nest("/api/v1", api_v1)
+        .split_for_parts();
+
+    router
+        // Documentation routes stay out of the spec they serve.
+        .route(
+            "/api/v1/openapi.json",
+            get(move || async move { Json(spec) }),
+        )
+        .route("/api/v1/docs", get(|| async { Html(DOCS_HTML) }))
         .fallback(not_found)
         .layer(cors())
         .layer(TraceLayer::new_for_http())

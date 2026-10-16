@@ -1,10 +1,13 @@
 use serde::Serialize;
 use turso::Row;
+use utoipa::ToSchema;
 
 use super::{ExternalIds, Image, image::image_columns};
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct Episode {
+    /// Equal to `overall_number`.
+    #[schema(example = 1)]
     pub id: i64,
     pub season_id: i64,
     pub number_in_season: i64,
@@ -12,13 +15,19 @@ pub struct Episode {
     pub title: String,
     pub slug: String,
     pub summary: String,
+    #[schema(required)]
     pub runtime_minutes: Option<i64>,
     /// ISO 8601 date, e.g. `2023-01-15`.
+    #[schema(format = Date, example = "2023-01-15")]
     pub release_date: String,
     pub director: String,
-    /// In credited order. Loaded separately from `episode_writers`.
+    /// In credited order.
+    // Loaded separately from `episode_writers`.
     pub writers: Vec<String>,
+    /// `null` until reliable figures are available.
+    #[schema(required)]
     pub viewer_count_millions: Option<f64>,
+    #[schema(required)]
     pub image: Option<Image>,
     pub external_ids: ExternalIds,
 }

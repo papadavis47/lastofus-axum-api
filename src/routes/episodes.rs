@@ -3,22 +3,39 @@ use std::collections::HashMap;
 use axum::{Json, extract::State};
 use serde::Deserialize;
 use turso::Connection;
+use utoipa::IntoParams;
 
 use crate::{
     db,
-    error::AppError,
+    error::{AppError, ErrorResponse},
     extract::{ApiPath, ApiQuery},
     models::Episode,
     response::{ApiResponse, Paginated, Pagination},
     state::AppState,
 };
 
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Default, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct EpisodeFilter {
-    /// Season number, e.g. `?season=1`.
+    /// Only episodes from this season number. An unknown season gives an empty page.
+    #[param(example = 1)]
     season: Option<u32>,
 }
 
+/// List episodes
+///
+/// Every episode in broadcast order, one page at a time, optionally filtered by season.
+#[utoipa::path(
+    get,
+    path = "/episodes",
+    tag = "episodes",
+    params(EpisodeFilter, Pagination),
+    responses(
+        (status = OK, description = "A page of episodes.", body = Paginated<Episode>),
+        (status = BAD_REQUEST, description = "`invalid_pagination` or `invalid_query_parameter`.", body = ErrorResponse),
+        (status = INTERNAL_SERVER_ERROR, description = "`internal_error`.", body = ErrorResponse),
+    ),
+)]
 pub async fn list_episodes(
     State(state): State<AppState>,
     ApiQuery(filter): ApiQuery<EpisodeFilter>,
@@ -33,6 +50,21 @@ pub async fn list_episodes(
     Ok(Json(page))
 }
 
+/// Get an episode
+///
+/// One episode by id. Ids follow broadcast order, so they equal `overall_number`.
+#[utoipa::path(
+    get,
+    path = "/episodes/{id}",
+    tag = "episodes",
+    params(("id" = u32, Path, description = "The episode id, e.g. `1`.", example = 1)),
+    responses(
+        (status = OK, description = "The episode.", body = ApiResponse<Episode>),
+        (status = BAD_REQUEST, description = "`invalid_path_parameter`.", body = ErrorResponse),
+        (status = NOT_FOUND, description = "`episode_not_found`.", body = ErrorResponse),
+        (status = INTERNAL_SERVER_ERROR, description = "`internal_error`.", body = ErrorResponse),
+    ),
+)]
 pub async fn get_episode(
     State(state): State<AppState>,
     ApiPath(id): ApiPath<u32>,

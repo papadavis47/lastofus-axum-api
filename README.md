@@ -12,7 +12,7 @@ It serves seasons and episodes as predictable JSON, with pagination, filtering a
 - **Sourced data.** Every fact was checked against Wikipedia, and each row records its source and the date it was checked.
 - **Light spoilers.** Episode summaries are short and light on plot, but they may contain mild spoilers for the episode they describe.
 
-Characters, cast, search and an OpenAPI spec are on the [roadmap](#roadmap).
+Characters, cast and search are on the [roadmap](#roadmap).
 
 ## Quick start
 
@@ -51,6 +51,19 @@ curl http://localhost:3000/api/v1/episodes/1
 }
 ```
 
+## Documentation
+
+With the server running:
+
+- **Interactive docs:** <http://localhost:3000/api/v1/docs>, where you can browse every endpoint and field and send requests.
+- **OpenAPI 3.1 spec:** <http://localhost:3000/api/v1/openapi.json>, for Postman, Insomnia or a client generator such as `openapi-typescript`.
+
+And in this repository:
+
+- [`docs/USING_THE_API.md`](docs/USING_THE_API.md): response shapes, pagination, errors, spoilers and rate limits.
+- [`docs/EXAMPLES.md`](docs/EXAMPLES.md): complete clients in `curl`, JavaScript, Python and Rust.
+- [`docs/SOURCES.md`](docs/SOURCES.md): where the data comes from and how to credit it.
+
 ## Endpoints
 
 | Method & path | Description |
@@ -61,6 +74,8 @@ curl http://localhost:3000/api/v1/episodes/1
 | `GET /api/v1/seasons/{season_number}/episodes` | A season's episodes |
 | `GET /api/v1/episodes` | List episodes; filter with `?season=2` |
 | `GET /api/v1/episodes/{id}` | One episode by id (1–16, in broadcast order) |
+| `GET /api/v1/openapi.json` | OpenAPI spec |
+| `GET /api/v1/docs` | Interactive docs (HTML) |
 
 All public routes are versioned under `/api/v1`.
 
@@ -161,6 +176,7 @@ src/
 ├── db/              database handle, query helpers, migration runner
 ├── routes/          handlers for health, seasons and episodes
 ├── models/          Season and Episode
+├── openapi/         OpenAPI document info and the docs page
 ├── response.rs      response wrappers and pagination
 ├── error.rs         structured errors
 └── extract.rs       path/query extractors with structured 400s
@@ -170,6 +186,7 @@ tests/api.rs         integration tests
 
 More docs:
 
+- [`docs/USING_THE_API.md`](docs/USING_THE_API.md), [`docs/EXAMPLES.md`](docs/EXAMPLES.md) and [`docs/SOURCES.md`](docs/SOURCES.md): for API users.
 - [`docs/PROJECT_PLAN.md`](docs/PROJECT_PLAN.md): the vision, data model, API conventions and full roadmap.
 - [`AGENTS.md`](AGENTS.md): detailed notes on the current state and code conventions, written for coding agents and useful for anyone working on the code.
 
@@ -180,13 +197,13 @@ More docs:
 | 1. Axum foundation | ✅ Done |
 | 2. Static API prototype | ✅ Done |
 | 3. Turso persistence | ✅ Done |
-| 4. Developer experience: CORS ✅, OpenAPI docs, client examples | In progress |
+| 4. Developer experience: CORS, OpenAPI docs, client examples | ✅ Done |
 | 5. Content expansion: characters, cast, search, licensed images | Planned |
 | 6. Deployment | Planned |
 
 ## Data sources
 
-Facts are checked one at a time against public sources, mainly the Wikipedia articles for [season 1](https://en.wikipedia.org/wiki/The_Last_of_Us_season_1) and [season 2](https://en.wikipedia.org/wiki/The_Last_of_Us_season_2), and each episode's own article for its runtime. Nothing is scraped automatically, and no IMDb content is used. The IMDb and Wikidata ids come from Wikidata, which is CC0. Summaries are original. No copyrighted promotional images are included.
+See [`docs/SOURCES.md`](docs/SOURCES.md) for details. Facts are checked one at a time against public sources, mainly the Wikipedia articles for [season 1](https://en.wikipedia.org/wiki/The_Last_of_Us_season_1) and [season 2](https://en.wikipedia.org/wiki/The_Last_of_Us_season_2), and each episode's own article for its runtime. Nothing is scraped automatically, and no IMDb content is used. The IMDb and Wikidata ids come from Wikidata, which is CC0. Summaries are original. No copyrighted promotional images are included.
 
 ## License
 

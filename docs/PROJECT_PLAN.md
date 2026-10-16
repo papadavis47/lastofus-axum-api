@@ -9,7 +9,7 @@ _Last updated: 2026-10-16_
 | 1 — Axum foundation | ✅ Done |
 | 2 — Static API prototype | ✅ Done |
 | 3 — Turso persistence | ✅ Done (seasons 1–2 and all 16 episodes, verified) |
-| 4 — Developer experience | 🚧 In progress: CORS done; image schema and `image`/`external_ids` fields landed first (migrations 0003–0004) |
+| 4 — Developer experience | ✅ Done: CORS, OpenAPI spec and Scalar docs, client examples, behaviour and sources docs; image schema and `image`/`external_ids` fields (migrations 0003–0004) |
 | 5–6 | Not started |
 
 See [`AGENTS.md`](../AGENTS.md) for the live endpoint list, code layout, and known gaps.
@@ -211,6 +211,7 @@ src/
 ├── state.rs        # AppState shared with handlers
 ├── bin/
 │   └── migrate.rs  # applies migrations; pushes to Turso Cloud in synced mode
+├── openapi/        # ApiDoc (spec info and tags) and the docs page HTML
 ├── models/
 │   ├── season.rs
 │   ├── episode.rs
@@ -300,12 +301,12 @@ Learning focus: asynchronous SQL, application state, joins, and migrations.
 
 Delivered: the `turso` crate in place of SQLx, embedded migrations with a `migrate` binary, normalized `seasons`, `episodes`, and `episode_writers` tables with foreign keys and provenance columns, and a seed of seasons 1–2 (16 episodes) verified against Wikipedia on 2026-10-15. Filtering and pagination run in SQL. Production reads from a Turso Cloud replica, and tests use a fresh in-memory database each.
 
-### Phase 4 — Developer experience (in progress)
+### Phase 4 — Developer experience ✅
 
-- Publish an OpenAPI specification and interactive documentation.
-- Add `curl`, JavaScript, Python, and Rust examples.
+- Publish an OpenAPI specification and interactive documentation. ✅ OpenAPI 3.1 generated with `utoipa` at `/api/v1/openapi.json`; Scalar docs at `/api/v1/docs`.
+- Add `curl`, JavaScript, Python, and Rust examples. ✅ [`docs/EXAMPLES.md`](EXAMPLES.md), each run against the live server.
 - Enable appropriately scoped CORS for browser exercises. ✅ Any origin may `GET`/`HEAD`; no credentials; preflights cached for a day.
-- Document rate limits, pagination, errors, and spoiler behavior.
+- Document rate limits, pagination, errors, and spoiler behavior. ✅ [`docs/USING_THE_API.md`](USING_THE_API.md); sources and attribution in [`docs/SOURCES.md`](SOURCES.md).
 
 ### Phase 5 — Content expansion
 

@@ -6,6 +6,7 @@ use axum::{
 };
 use serde::Serialize;
 use thiserror::Error;
+use utoipa::ToSchema;
 
 /// Every error a handler can return. Each variant renders as the structured
 /// `{"error": {status, code, message}}` body described in the project plan.
@@ -52,15 +53,22 @@ impl AppError {
     }
 }
 
-#[derive(Serialize)]
-struct ErrorResponse {
+/// The body of every error response.
+#[derive(Serialize, ToSchema)]
+pub struct ErrorResponse {
     error: ErrorBody,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 struct ErrorBody {
+    /// The HTTP status code, repeated for convenience.
+    #[schema(example = 404)]
     status: u16,
+    /// A stable, machine-readable `snake_case` code.
+    #[schema(example = "episode_not_found")]
     code: &'static str,
+    /// A human-readable sentence. Don't match on it; it may change.
+    #[schema(example = "Episode 99 was not found.")]
     message: String,
 }
 

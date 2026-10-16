@@ -438,3 +438,77 @@ async fn cors_preflight_allows_only_reads() {
     assert!(header(&response, "access-control-allow-headers").contains("content-type"));
     assert_eq!(header(&response, "access-control-max-age"), "86400");
 }
+
+#[tokio::test]
+async fn serves_an_openapi_spec_for_every_route() {
+    let (status, spec) = get("/api/v1/openapi.json").await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert!(spec["openapi"].as_str().unwrap().starts_with("3."));
+    assert_eq!(spec["info"]["title"], "The Last of Us API");
+
+    let mut paths: Vec<&str> = spec["paths"]
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(String::as_str)
+        .collect();
+    paths.sort();
+    assert_eq!(
+        paths,
+        [
+            "/api/v1/episodes",
+            "/api/v1/episodes/{id}",
+            "/api/v1/seasons",
+            "/api/v1/seasons/{season_number}",
+            "/api/v1/seasons/{season_number}/episodes",
+            "/health",
+        ]
+    );
+
+    // Every documented path is a real route, not a 404.
+    for path in paths {
+        let uri = path.replace("{id}", "1").replace("{season_number}", "1");
+        let (status, _) = get(&uri).await;
+        assert_eq!(status, StatusCode::OK, "{uri}");
+    }
+}
+
+#[tokio::test]
+async fn openapi_spec_documents_parameters_and_errors() {
+    let (_, spec) = get("/api/v1/openapi.json").await;
+
+    let list = &spec["paths"]["/api/v1/episodes"]["get"];
+    let params: Vec<&str> = list["parameters"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|param| param["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(params, ["season", "page", "limit"]);
+    assert!(list["responses"]["400"].is_object());
+
+    let get_one = &spec["paths"]["/api/v1/episodes/{id}"]["get"];
+    assert!(get_one["responses"]["404"].is_object());
+
+    let schemas = &spec["components"]["schemas"];
+    for name in ["Episode", "Season", "Image", "ExternalIds", "ErrorResponse"] {
+        assert!(schemas[name].is_object(), "missing {name} schema");
+    }
+    // Nullable fields are always sent, so they're required, not optional.
+    let required = schemas["Episode"]["required"].as_array().unwrap();
+    for field in ["image", "runtime_minutes", "viewer_count_millions"] {
+        assert!(required.contains(&json!(field)), "{field} isn't required");
+    }
+}
+
+#[tokio::test]
+async fn serves_interactive_docs() {
+    let response = send(Request::get("/api/v1/docs").body(Body::empty()).unwrap()).await;
+
+    assert_eq!(response.status(), StatusCode::OK);
+    assert!(header(&response, "content-type").starts_with("text/html"));
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let html = std::str::from_utf8(&body).unwrap();
+    assert!(html.contains(r#"data-url="/api/v1/openapi.json""#));
+}

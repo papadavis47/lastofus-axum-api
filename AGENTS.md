@@ -17,8 +17,8 @@ The project is not affiliated with HBO, Sony, or Naughty Dog. Do not add copyrig
 | 1 — Axum foundation | ✅ Done |
 | 2 — Static API prototype | ✅ Done |
 | 3 — Turso persistence | ✅ Done |
-| 4 — Developer experience (OpenAPI, CORS, examples) | 🚧 **In progress** (CORS done) |
-| 5 — Content expansion (characters, cast, search, images) | Not started |
+| 4 — Developer experience (OpenAPI, CORS, examples) | ✅ Done |
+| 5 — Content expansion (characters, cast, search, images) | **Next** |
 | 6 — Deployment | Not started |
 
 ### Live endpoints
@@ -31,6 +31,8 @@ The project is not affiliated with HBO, Sony, or Naughty Dog. Do not add copyrig
 | `GET /api/v1/seasons/{season_number}/episodes` | Paginated; `404` if the season is missing |
 | `GET /api/v1/episodes` | Paginated; `?season=<number>` filter (an unknown season gives an empty page, not a 404) |
 | `GET /api/v1/episodes/{id}` | `404 episode_not_found` if missing |
+| `GET /api/v1/openapi.json` | OpenAPI 3.1 spec for every route above (not for itself or `/docs`) |
+| `GET /api/v1/docs` | Interactive Scalar docs (HTML; loads `@scalar/api-reference` pinned on jsDelivr) |
 | anything else | `404 route_not_found` |
 
 Every response, errors included, carries `Access-Control-Allow-Origin: *`. Preflight `OPTIONS` requests are answered by the CORS layer before routing; it allows only `GET` and `HEAD`, the `Accept` and `Content-Type` headers, and caches preflights for a day. No credentials are allowed.
@@ -85,7 +87,9 @@ TURSO_DATABASE_URL=http://127.0.0.1:8080 DATABASE_PATH=reader.db cargo run
 src/lib.rs             Library crate root; tests/ and src/bin/ import from here
 src/main.rs            Server binary: tracing, Config, Db::open, migrate-or-check, serve, graceful shutdown
 src/bin/migrate.rs     `cargo run --bin migrate`: apply migrations, push when synced
-src/app.rs             router(state): /health, nested /api/v1 routes, fallback, CorsLayer, TraceLayer
+src/app.rs             router(state): OpenApiRouter + routes!() for documented handlers, split into
+                       Router + spec; /api/v1/openapi.json, /api/v1/docs, fallback, CORS, tracing
+src/openapi/           ApiDoc (#[derive(OpenApi)]: info, tags) and docs.html (Scalar page)
 src/config.rs          Config / DatabaseConfig from env: PORT, DATABASE_PATH, TURSO_DATABASE_URL, TURSO_AUTH_TOKEN
 src/db/mod.rs          Db {Local, Synced}; connect/push; query_all, query_optional, count helpers
 src/db/migrations.rs   MIGRATIONS list; run() and pending()
@@ -93,7 +97,7 @@ src/error.rs           AppError {NotFound, BadRequest, Internal} → structured 
 src/extract.rs         ApiPath<T> / ApiQuery<T>: Path/Query whose rejections become AppError 400s
 src/response.rs        ApiResponse<T>, Paginated<T>, PageMeta, Pagination (validate, offset, page)
 src/state.rs           AppState { db: Db }
-src/models/            Season, Episode: Serialize structs with FROM + COLUMNS + from_row(&turso::Row);
+src/models/            Season, Episode: Serialize + ToSchema structs with FROM + COLUMNS + from_row;
                        image.rs has Image/Attribution/ExternalIds and the image_columns! macro
 src/routes/            health.rs, seasons.rs, episodes.rs: handlers with their SQL inline
 migrations/            0001 schema, 0002 seed (verified data), 0003 images + external ids schema,
@@ -101,6 +105,9 @@ migrations/            0001 schema, 0002 seed (verified data), 0003 images + ext
 tests/api.rs           Integration tests: fresh migrated in-memory Db per test, router via oneshot
 README.md              Human-facing overview: quick start, endpoints, configuration
 docs/PROJECT_PLAN.md   Vision, data model, API conventions, roadmap
+docs/USING_THE_API.md  Client-facing behaviour: shapes, pagination, errors, spoilers, rate limits
+docs/EXAMPLES.md       curl, JS fetch, Python and Rust clients (all run against a live server)
+docs/SOURCES.md        Data sources, attribution and reuse
 .agents/setup, .agents/resume  Amp orb lifecycle scripts (install/check the Rust toolchain)
 ```
 
@@ -113,7 +120,8 @@ docs/PROJECT_PLAN.md   Vision, data model, API conventions, roadmap
 - **Images.** Only add images whose licence allows redistribution (Wikimedia Commons, public domain, or written permission; see "Image policy" in `docs/PROJECT_PLAN.md`). Never add HBO stills, posters or screenshots, and never pass TMDB images through the API: TMDB's licence can't be sublicensed. Fill in `external_ids` instead, so clients can fetch artwork themselves. Every `images` row needs `source_page_url`, `license_name` and `attribution_text`. Add images in new migrations.
 - **Extractors.** Use `ApiPath` and `ApiQuery` (not Axum's `Path` and `Query`) so bad input gets a structured 400. Path ids and query numbers are `u32`, which rejects negatives. A handler can take several `ApiQuery` extractors, e.g. a filter struct plus `Pagination`. Don't use `#[serde(flatten)]` with query structs: flatten breaks numeric parsing in `serde_urlencoded`.
 - **Data values.** Unknown values are `null`, never `""`. Dates are ISO 8601 strings (`2023-01-15`). Human-facing lookups use slugs (`ellie-williams`), and episodes use numeric ids. Every new fact needs a source; record it in the row's `source_*` and `last_verified_at` columns. Summaries must be original writing.
-- **Routes.** Public routes live under `/api/v1`, nested in `app.rs`.
+- **Routes.** Public routes live under `/api/v1`, nested in `app.rs`. Register every data route with `.routes(routes!(handler))` on the `OpenApiRouter`, never with plain `.route`, so it lands in the spec. `routes!` takes handlers for one path only.
+- **OpenAPI.** Every handler gets `#[utoipa::path(...)]` with a `tag`, its params (`IntoParams` structs for queries, tuples for path ids), and every response it can return: `200` plus each `400`/`404`/`500` as `body = ErrorResponse`, with the possible error codes in the description. The doc comment's first line is the summary. Response models derive `ToSchema`; `Option` fields get `#[schema(required)]` because they are always serialized (as `null`). Doc comments on schema fields are public docs, so put implementation notes in `//` comments. The spec test in `tests/api.rs` lists every documented path; update it with new routes.
 - **Tests.** Every endpoint gets integration tests in `tests/` covering success, 404s, and 400s. Tests use `Db::in_memory()` plus `migrations::run` and never bind a port or touch the network.
 - **Style.** Rust 2024 edition. Keep `cargo fmt` and `cargo clippy --all-targets -- -D warnings` clean.
 
@@ -131,17 +139,18 @@ curl -s 'localhost:3000/api/v1/episodes?season=2' | jq
 
 Run `cargo fmt`, `cargo clippy --all-targets -- -D warnings`, and `cargo test` before every commit. All three must pass. The first build compiles the Turso engine and takes a few minutes.
 
-## Next steps (Phase 4: developer experience)
+## Next steps (Phase 5: content expansion)
 
-1. **OpenAPI:** generate a spec (e.g. `utoipa` + `utoipa-axum`) for every endpoint, with response and error schemas. Serve it at `/api/v1/openapi.json` with an interactive docs page.
-2. **Examples:** `curl`, JavaScript (`fetch`), Python and Rust client examples in `docs/`.
-3. **Behaviour docs:** document pagination, errors, spoiler policy and the unofficial-project disclaimer, and add a sources/attribution page or endpoint (the provenance columns already exist).
+1. **Characters and cast:** tables, seed migration with sources, `ToSchema` models, and documented endpoints (`/characters`, `/characters/{slug}`, `/cast`, `/cast/{slug}`, `/episodes/{id}/characters`).
+2. **Provenance:** expose `source_name`, `source_url` and `last_verified_at` (e.g. a `source` object), and update `docs/SOURCES.md`.
+3. **Licensed images**, search, and more verified data (season 3 once it airs).
 
 Later:
-- Characters and cast tables and endpoints (Phase 5).
 - A periodic `pull` for synced replicas.
-- A container image and deployment (Phase 6).
+- A container image and deployment (Phase 6). Once there's a public URL, add it to the OpenAPI `servers` list and the docs.
+
+When an endpoint or behaviour changes, keep `docs/USING_THE_API.md`, `docs/EXAMPLES.md` and `README.md` in step with it.
 
 ## History
 
-Development started with Amp (the `.agents/` scripts are its orb setup/resume hooks) and Delta, and continued with Claude Code. Commits so far: cargo scaffold → Amp orb scripts → project plan → Phase 1 foundation → Phase 2 prototype → docs (AGENTS.md, CLAUDE.md) → Phase 3 Turso persistence.
+Development started with Amp (the `.agents/` scripts are its orb setup/resume hooks) and Delta, and continued with Claude Code. Commits so far: cargo scaffold → Amp orb scripts → project plan → Phase 1 foundation → Phase 2 prototype → docs (AGENTS.md, CLAUDE.md) → Phase 3 Turso persistence → images and external ids → CORS → OpenAPI, examples and behaviour docs (Phase 4).
