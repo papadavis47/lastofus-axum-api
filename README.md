@@ -16,7 +16,7 @@ Characters, cast and search are on the [roadmap](#roadmap).
 
 ## Quick start
 
-You need [Rust](https://www.rust-lang.org/tools/install) 1.85 or newer (2024 edition). It has been tested with 1.97.
+You need [Rust](https://www.rust-lang.org/tools/install) 1.90 or newer (2024 edition). CI checks 1.90 and the latest stable.
 
 ```bash
 git clone https://github.com/papadavis47/lastofus-axum-api.git
