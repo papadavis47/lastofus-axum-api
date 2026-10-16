@@ -92,6 +92,7 @@ src/models/            Season, Episode: Serialize structs with COLUMNS + from_ro
 src/routes/            health.rs, seasons.rs, episodes.rs: handlers with their SQL inline
 migrations/            0001 schema, 0002 seed (verified data)
 tests/api.rs           Integration tests: fresh migrated in-memory Db per test, router via oneshot
+README.md              Human-facing overview: quick start, endpoints, configuration
 docs/PROJECT_PLAN.md   Vision, data model, API conventions, roadmap
 .agents/setup, .agents/resume  Amp orb lifecycle scripts (install/check the Rust toolchain)
 ```
