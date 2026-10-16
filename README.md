@@ -9,10 +9,11 @@ It serves seasons and episodes as predictable JSON, with pagination, filtering a
 ## What's in it
 
 - **Seasons 1 and 2** and all **16 episodes**: titles, release dates, directors, writers in credited order, and runtimes.
+- **34 characters**, with their billing in each season (main, recurring or guest) and the episodes they're credited in.
 - **Sourced data.** Every fact was checked against Wikipedia, and each row records its source and the date it was checked.
 - **Light spoilers.** Episode summaries are short and light on plot, but they may contain mild spoilers for the episode they describe.
 
-Characters, cast and search are on the [roadmap](#roadmap).
+Cast members (the actors) and search are next; see [`PLAN.md`](PLAN.md).
 
 ## Quick start
 
@@ -74,6 +75,10 @@ And in this repository:
 | `GET /api/v1/seasons/{season_number}/episodes` | A season's episodes |
 | `GET /api/v1/episodes` | List episodes; filter with `?season=2` |
 | `GET /api/v1/episodes/{id}` | One episode by id (1–16, in broadcast order) |
+| `GET /api/v1/episodes/{id}/characters` | The characters credited in an episode |
+| `GET /api/v1/characters` | List characters; filter with `?season=2` and `?role=main` (`main`, `recurring` or `guest`) |
+| `GET /api/v1/characters/{slug}` | One character, e.g. `/characters/joel-miller` |
+| `GET /api/v1/characters/{slug}/episodes` | The episodes a character is credited in; filter with `?season=` |
 | `GET /api/v1/openapi.json` | OpenAPI spec |
 | `GET /api/v1/docs` | Interactive docs (HTML) |
 
@@ -115,7 +120,7 @@ Errors always use the same JSON shape, with an HTTP status, a machine-readable `
 | Status | Codes |
 |---|---|
 | `400` | `invalid_pagination`, `invalid_path_parameter`, `invalid_query_parameter` |
-| `404` | `season_not_found`, `episode_not_found`, `route_not_found` |
+| `404` | `season_not_found`, `episode_not_found`, `character_not_found`, `route_not_found` |
 | `500` | `internal_error` (details are logged, never returned) |
 
 ### Conventions

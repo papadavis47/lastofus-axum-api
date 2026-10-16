@@ -4,7 +4,7 @@ Where the API's data comes from, and what you need to credit if you reuse it.
 
 > This is an unofficial, educational project. It is not affiliated with or endorsed by HBO, Max, Sony, Naughty Dog, or the series' creators. *The Last of Us* and related names belong to their respective owners.
 
-## Facts
+## Seasons and episodes
 
 Season and episode facts (titles, release dates, directors, writers and runtimes) were checked one at a time against these Wikipedia articles on 2026-10-15:
 
@@ -14,12 +14,28 @@ Season and episode facts (titles, release dates, directors, writers and runtimes
 | Season 2 and its 7 episodes | [The Last of Us season 2](https://en.wikipedia.org/wiki/The_Last_of_Us_season_2) |
 | Episode runtimes | Each episode's own Wikipedia article |
 
-Nothing is scraped automatically. Every season and episode row in the database records its `source_name`, `source_url` and `last_verified_at`. The API doesn't return these fields yet; exposing them is planned for Phase 5.
+Nothing is imported automatically. Every season, episode and character row in the database records its `source_name`, `source_url` and `last_verified_at`. The API doesn't return these fields yet; exposing them is planned for Phase 5.
 
 Notes on specific values:
 
 - **Season 1, episode 5** has a `release_date` of `2023-02-10`, when it was released online on HBO Max. Its TV broadcast moved to 2023-02-12 because of the Super Bowl, which is the date Wikipedia's episode table shows.
 - **`viewer_count_millions`** is `null` everywhere. The only per-episode figures are same-night US TV ratings, which badly understate total viewing.
+
+## Characters
+
+Characters were checked against Wikipedia on 2026-10-16:
+
+| Data | Source |
+|---|---|
+| Which characters are included, and the episodes each is credited in | The overview table in [Characters of The Last of Us (TV series)](https://en.wikipedia.org/wiki/Characters_of_The_Last_of_Us_(TV_series)) |
+| Each character's billing (main, recurring or guest) per season, and their names | The "Cast and characters" sections of the [season 1](https://en.wikipedia.org/wiki/The_Last_of_Us_season_1) and [season 2](https://en.wikipedia.org/wiki/The_Last_of_Us_season_2) articles |
+
+The two sources were cross-checked: every character has a billing in each season they're credited in, and vice versa. Notes:
+
+- The 34 characters are the ones with their own section in the characters article. One-off guests such as Robert or Hanrahan aren't included yet. Yara and Lev appear only in season 3, so they're left out until it's added.
+- Episode links follow the on-screen credits. Credits the table marks as "credited but does not appear" (Tommy in season 2 episodes 4 and 5, Jesse in season 2 episode 4) are left out. Joel's uncredited appearance in season 2 episode 5 is included.
+- Names follow the season articles, so Ellie is "Ellie", not the games' "Ellie Williams".
+- Descriptions are original writing.
 
 ## External ids
 

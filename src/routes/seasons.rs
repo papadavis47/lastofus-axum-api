@@ -7,7 +7,7 @@ use crate::{
     extract::{ApiPath, ApiQuery},
     models::{Episode, Season},
     response::{ApiResponse, Paginated, Pagination},
-    routes::episodes,
+    routes::episodes::{self, EpisodeQuery},
     state::AppState,
 };
 
@@ -99,7 +99,11 @@ pub async fn list_season_episodes(
     let conn = state.db.connect().await?;
 
     find_season(&conn, season_number).await?;
-    let page = episodes::fetch_page(&conn, Some(season_number), pagination).await?;
+    let query = EpisodeQuery {
+        season: Some(season_number),
+        character_id: None,
+    };
+    let page = episodes::fetch_page(&conn, query, pagination).await?;
 
     Ok(Json(page))
 }

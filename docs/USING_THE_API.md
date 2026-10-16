@@ -34,6 +34,8 @@ A collection is a list in `data` plus pagination details in `meta`:
 - Unknown values are `null`, never `""`. Nullable fields are still always present, so check for `null` rather than for a missing key.
 - Episode `id`s follow broadcast order across the whole series, so `id` equals `overall_number` (1–16). Seasons are looked up by their `number`.
 - `writers` lists names in credited order.
+- Characters are looked up by `slug`, e.g. `joel-miller`. Names follow the TV series, so Ellie is `ellie`, not the games' "Ellie Williams".
+- A character's `seasons` lists every season they appear in, each with a `role` (`main`, `recurring` or `guest`: their billing that season, which can change) and an `episode_count`.
 - `viewer_count_millions` is `null` for now. The only per-episode figures are same-night US TV ratings, which badly understate how many people watched.
 - `image` is `null` until properly licensed images are added. When it is set, it includes an `attribution` object; if you show the image, show `attribution.text` with it.
 - `external_ids` holds the matching `imdb`, `wikidata` and `tmdb` ids, so you can look things up elsewhere under those services' terms. `tmdb` isn't filled in yet: use TMDB series id `100088` with the season and episode numbers.
@@ -52,6 +54,12 @@ Every collection is paginated with two query parameters:
 To fetch everything, start at page 1 and stop after `meta.total_pages` (or when `data` comes back empty). With only 16 episodes, `?limit=100` gets them all at once.
 
 Filters work alongside pagination. `GET /api/v1/episodes?season=2&limit=3` returns the first three episodes of season 2, and `meta.total` is `7`. An unknown season in the `season` filter gives an empty page, while `GET /api/v1/seasons/99/episodes` is a `404`, because there the season is the resource you asked for.
+
+## Characters and episodes
+
+`GET /api/v1/characters/{slug}/episodes` and `GET /api/v1/episodes/{id}/characters` link characters to the episodes they're **credited** in. That follows the on-screen credits, with two corrections: a character who is credited but doesn't appear is left out, and a character who appears without a credit is included. A credit can come from a flashback or a recap, so it doesn't always mean a big part in the episode.
+
+`GET /api/v1/characters?role=main` matches characters with that billing in any season. Add `season`, as in `?season=1&role=main`, to match the billing in that season only.
 
 ## Errors
 
@@ -78,12 +86,15 @@ Every error has the same shape, whatever the status:
 | `400` | `invalid_path_parameter` | A path id isn't a valid number, e.g. `/episodes/abc` |
 | `404` | `season_not_found` | No season has that number |
 | `404` | `episode_not_found` | No episode has that id |
+| `404` | `character_not_found` | No character has that slug |
 | `404` | `route_not_found` | The path doesn't exist |
 | `500` | `internal_error` | Something went wrong on the server. Details are logged, never returned. Retrying later may help. |
 
 ## Spoilers
 
-Episode and season summaries are original, short, and deliberately light on plot. They may still contain **mild spoilers for the episode or season they describe**, but they don't reveal major twists or deaths. Titles, dates and credits are not considered spoilers. If you're building something for people who haven't seen the show, hide `summary` behind a click.
+Episode and season summaries and character descriptions are original, short, and deliberately light on plot. They may still contain **mild spoilers for the episode, season or character they describe**, but they don't reveal major twists or deaths. Titles, dates and writing and directing credits are not considered spoilers. If you're building something for people who haven't seen the show, hide `summary` and `description` behind a click.
+
+**Character appearances can be spoilers.** The list of episodes a character is credited in, and their `episode_count` per season, can hint at what happens to them, for example when a character stops appearing. Treat `/characters/{slug}/episodes`, `/episodes/{id}/characters` and `seasons` as revealing as the episodes they cover.
 
 ## Rate limits and availability
 

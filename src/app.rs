@@ -16,7 +16,7 @@ use utoipa_axum::{router::OpenApiRouter, routes};
 use crate::{
     error::not_found,
     openapi::{ApiDoc, DOCS_HTML},
-    routes::{episodes, health, seasons},
+    routes::{characters, episodes, health, seasons},
     state::AppState,
 };
 
@@ -28,7 +28,11 @@ pub fn router(state: AppState) -> axum::Router {
         .routes(routes!(seasons::get_season))
         .routes(routes!(seasons::list_season_episodes))
         .routes(routes!(episodes::list_episodes))
-        .routes(routes!(episodes::get_episode));
+        .routes(routes!(episodes::get_episode))
+        .routes(routes!(episodes::list_episode_characters))
+        .routes(routes!(characters::list_characters))
+        .routes(routes!(characters::get_character))
+        .routes(routes!(characters::list_character_episodes));
 
     let (router, spec) = OpenApiRouter::with_openapi(ApiDoc::openapi())
         .routes(routes!(health::health))
