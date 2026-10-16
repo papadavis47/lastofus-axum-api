@@ -46,7 +46,7 @@ curl http://localhost:3000/api/v1/episodes/1
     "writers": ["Craig Mazin", "Neil Druckmann"],
     "viewer_count_millions": null,
     "image": null,
-    "external_ids": { "tmdb": null, "imdb": null, "wikidata": null }
+    "external_ids": { "tmdb": null, "imdb": "tt11957006", "wikidata": "Q116169494" }
   }
 }
 ```
@@ -106,7 +106,7 @@ Errors always use the same JSON shape, with an HTTP status, a machine-readable `
 - Dates are ISO 8601 (`2023-01-15`).
 - Unknown values are `null`, never empty strings. For example, `viewer_count_millions` and `image` are `null` until reliable figures and properly licensed images are available.
 - Seasons and episodes have an `image` field. When it's set, it's an object with `url`, `width`, `height`, `alt` and an `attribution` object (`text`, `creator`, `license`, `license_url`, `source_url`). If you display the image, show its `attribution.text`; the image's licence requires it.
-- `external_ids` holds the matching `tmdb`, `imdb` and `wikidata` ids, so you can fetch artwork from those services yourself, under their terms. This API only serves images it is allowed to redistribute.
+- `external_ids` holds the matching `tmdb`, `imdb` and `wikidata` ids, so you can fetch artwork from those services yourself, under their terms. This API only serves images it is allowed to redistribute. Episodes have IMDb and Wikidata ids, and seasons have Wikidata ids. TMDB ids aren't filled in yet; use TMDB series id `100088` with the season and episode numbers (`/tv/100088/season/1/episode/1`).
 
 ## Configuration
 
@@ -184,7 +184,7 @@ More docs:
 
 ## Data sources
 
-Facts are checked one at a time against public sources, mainly the Wikipedia articles for [season 1](https://en.wikipedia.org/wiki/The_Last_of_Us_season_1) and [season 2](https://en.wikipedia.org/wiki/The_Last_of_Us_season_2), and each episode's own article for its runtime. Nothing is scraped automatically, and no IMDb content is used. Summaries are original. No copyrighted promotional images are included.
+Facts are checked one at a time against public sources, mainly the Wikipedia articles for [season 1](https://en.wikipedia.org/wiki/The_Last_of_Us_season_1) and [season 2](https://en.wikipedia.org/wiki/The_Last_of_Us_season_2), and each episode's own article for its runtime. Nothing is scraped automatically, and no IMDb content is used. The IMDb and Wikidata ids come from Wikidata, which is CC0. Summaries are original. No copyrighted promotional images are included.
 
 ## License
 

@@ -41,7 +41,8 @@ Pagination on every collection: `?page=` (≥ 1, default 1) and `?limit=` (1–1
 - Every fact was verified against Wikipedia on 2026-10-15. Each row stores `source_name`, `source_url`, and `last_verified_at`; these are not exposed by the API yet.
 - Season 1 episode 5's `release_date` is 2023-02-10, its online release on HBO Max (the broadcast moved to 2023-02-12 for the Super Bowl).
 - `viewer_count_millions` is `null` everywhere. The only per-episode viewer figures are same-night US linear-TV ratings, which understate total viewing badly.
-- `migrations/0003_images_and_external_ids.sql` adds an `images` table (URL, size, alt text, and licence/attribution columns) that `seasons.image_id` and `episodes.image_id` point to, and `tmdb_id`, `imdb_id` and `wikidata_id` columns on both. It drops `episodes.image_url`. No images or external ids are filled in yet, so every `image` is `null` and every `external_ids` value is `null`.
+- `migrations/0003_images_and_external_ids.sql` adds an `images` table (URL, size, alt text, and licence/attribution columns) that `seasons.image_id` and `episodes.image_id` point to, and `tmdb_id`, `imdb_id` and `wikidata_id` columns on both. It drops `episodes.image_url`. No images are licensed yet, so every `image` is `null`.
+- `migrations/0004_seed_external_ids.sql` fills in Wikidata ids for both seasons and Wikidata and IMDb ids for all 16 episodes. They were taken from Wikidata (CC0) on 2026-10-16, and the IMDb ids were cross-checked against IMDb's title lookup. Seasons have no `imdb` id, because IMDb doesn't have season ids. `tmdb` is `null` everywhere: TMDB's integer ids can't be verified without an API key. Clients can reach TMDB with series id `100088` plus the season and episode numbers. Sources for these ids are recorded in the migration's header comment, not in `source_*` (those columns describe the Wikipedia facts).
 - Seasons and episodes return `"image": null | {url, width, height, alt, attribution: {text, creator, license, license_url, source_url}}` and `"external_ids": {tmdb, imdb, wikidata}`.
 - Season 3 is expected in 2027. Add it in a new migration once episodes air.
 
@@ -93,7 +94,8 @@ src/state.rs           AppState { db: Db }
 src/models/            Season, Episode: Serialize structs with FROM + COLUMNS + from_row(&turso::Row);
                        image.rs has Image/Attribution/ExternalIds and the image_columns! macro
 src/routes/            health.rs, seasons.rs, episodes.rs: handlers with their SQL inline
-migrations/            0001 schema, 0002 seed (verified data), 0003 images + external ids
+migrations/            0001 schema, 0002 seed (verified data), 0003 images + external ids schema,
+                       0004 external id data
 tests/api.rs           Integration tests: fresh migrated in-memory Db per test, router via oneshot
 README.md              Human-facing overview: quick start, endpoints, configuration
 docs/PROJECT_PLAN.md   Vision, data model, API conventions, roadmap

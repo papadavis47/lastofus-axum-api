@@ -88,6 +88,11 @@ async fn gets_a_season_by_number() {
     assert_eq!(body["data"]["number"], 1);
     assert_eq!(body["data"]["release_year"], 2023);
     assert_eq!(body["data"]["image"], Value::Null);
+    // IMDb has no season ids.
+    assert_eq!(
+        body["data"]["external_ids"],
+        json!({"tmdb": null, "imdb": null, "wikidata": "Q107549810"})
+    );
 }
 
 #[tokio::test]
@@ -129,7 +134,7 @@ async fn gets_an_episode_by_id() {
     assert_eq!(body["data"]["image"], Value::Null);
     assert_eq!(
         body["data"]["external_ids"],
-        json!({"tmdb": null, "imdb": null, "wikidata": null})
+        json!({"tmdb": null, "imdb": "tt11957006", "wikidata": "Q116169494"})
     );
     assert!(body["data"].get("image_url").is_none());
 }
@@ -174,7 +179,7 @@ async fn returns_images_with_attribution() {
     );
     assert_eq!(
         body["data"]["external_ids"],
-        json!({"tmdb": 42, "imdb": "tt0000001", "wikidata": null})
+        json!({"tmdb": 42, "imdb": "tt0000001", "wikidata": "Q116178387"})
     );
 
     // Lists join images too, and leave episodes without one as null.
@@ -211,6 +216,24 @@ async fn lists_season_two_episodes_in_order_with_writers() {
         episodes[5]["writers"],
         json!(["Neil Druckmann", "Halley Gross", "Craig Mazin"])
     );
+}
+
+#[tokio::test]
+async fn every_episode_has_distinct_external_ids() {
+    let (_, body) = get("/api/v1/episodes?limit=100").await;
+    let episodes = body["data"].as_array().unwrap();
+    assert_eq!(episodes.len(), 16);
+
+    for key in ["imdb", "wikidata"] {
+        let mut ids: Vec<&str> = episodes
+            .iter()
+            .map(|episode| episode["external_ids"][key].as_str().unwrap())
+            .collect();
+        ids.sort();
+        ids.dedup();
+        assert_eq!(ids.len(), 16, "duplicate {key} ids");
+    }
+    assert_eq!(episodes[15]["external_ids"]["imdb"], "tt32550887");
 }
 
 #[tokio::test]
@@ -327,7 +350,7 @@ async fn pending_migrations_are_reported_without_writing() {
     let db = Db::in_memory().await.unwrap();
     let conn = db.connect().await.unwrap();
 
-    assert_eq!(migrations::pending(&conn).await.unwrap(), [1, 2, 3]);
+    assert_eq!(migrations::pending(&conn).await.unwrap(), [1, 2, 3, 4]);
 
     // `pending` must not create `_migrations`: servers call it on read-only replicas.
     let mut rows = conn
