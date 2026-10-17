@@ -2,6 +2,7 @@
 name = "lastofus-axum-api"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.90"
 default-run = "lastofus-axum-api"
 license = "MIT"
 

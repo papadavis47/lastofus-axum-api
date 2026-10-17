@@ -10,7 +10,8 @@ _Last updated: 2026-10-16_
 | 2 — Static API prototype | ✅ Done |
 | 3 — Turso persistence | ✅ Done (seasons 1–2 and all 16 episodes, verified) |
 | 4 — Developer experience | ✅ Done: CORS, OpenAPI spec and Scalar docs, client examples, behaviour and sources docs; image schema and `image`/`external_ids` fields (migrations 0003–0004) |
-| 5–6 | Not started |
+| 5 — Content expansion | 🚧 In progress: characters, per-season billing and episode links done (migrations 0005–0006); cast next. See [`PLAN.md`](../PLAN.md) |
+| 6 — Deployment | Not started |
 
 See [`AGENTS.md`](../AGENTS.md) for the live endpoint list, code layout, and known gaps.
 
@@ -56,6 +57,7 @@ GET /api/v1/seasons/{season_number}/episodes
 
 GET /api/v1/episodes
 GET /api/v1/episodes/{id}
+GET /api/v1/episodes/{id}/characters
 
 GET /api/v1/characters
 GET /api/v1/characters/{slug}
@@ -115,10 +117,8 @@ Human-facing resources should use URL-safe slugs such as `ellie-williams`. Numer
 - `name`
 - `slug`
 - `description`
-- `role_type` (`main`, `recurring`, or `guest`)
-- `first_season`
-- `last_season`
-- `image_url` (optional)
+- `seasons`: one entry per season with `role` (`main`, `recurring`, or `guest`) and `episode_count`. This replaced the original `role_type`, `first_season` and `last_season`, because billing changes between seasons.
+- `image` (optional, see "Image policy")
 
 ### Cast member
 
@@ -215,13 +215,13 @@ src/
 ├── models/
 │   ├── season.rs
 │   ├── episode.rs
-│   ├── character.rs     (planned)
+│   ├── character.rs
 │   └── cast_member.rs   (planned)
 ├── routes/
 │   ├── health.rs
 │   ├── seasons.rs
 │   ├── episodes.rs
-│   ├── characters.rs    (planned)
+│   ├── characters.rs
 │   └── cast.rs          (planned)
 └── db/
     ├── mod.rs           # Db (local or synced), connections, query helpers
@@ -308,9 +308,9 @@ Delivered: the `turso` crate in place of SQLx, embedded migrations with a `migra
 - Enable appropriately scoped CORS for browser exercises. ✅ Any origin may `GET`/`HEAD`; no credentials; preflights cached for a day.
 - Document rate limits, pagination, errors, and spoiler behavior. ✅ [`docs/USING_THE_API.md`](USING_THE_API.md); sources and attribution in [`docs/SOURCES.md`](SOURCES.md).
 
-### Phase 5 — Content expansion
+### Phase 5 — Content expansion (in progress)
 
-- Complete character and cast relationships.
+- Complete character and cast relationships. Characters ✅ (34 characters, billing per season, episode links); cast next.
 - Expand the verified episode dataset.
 - Add licensed images with attribution.
 - Add search, filming locations, creators, and production credits.

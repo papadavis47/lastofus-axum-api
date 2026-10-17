@@ -16,6 +16,14 @@ curl -s 'http://localhost:3000/api/v1/seasons/2/episodes?limit=3&page=2' | jq '.
 # Filter the episode list by season.
 curl -s 'http://localhost:3000/api/v1/episodes?season=1&limit=100' | jq '.meta.total'
 
+# A character, and the main characters of season 2.
+curl -s http://localhost:3000/api/v1/characters/joel-miller | jq '.data.name, .data.seasons'
+curl -s 'http://localhost:3000/api/v1/characters?season=2&role=main' | jq -r '.data[].name'
+
+# Who's credited in season 1 episode 3, and which episodes Tess is in.
+curl -s http://localhost:3000/api/v1/episodes/3/characters | jq -r '.data[].name'
+curl -s http://localhost:3000/api/v1/characters/tess/episodes | jq -r '.data[].title'
+
 # Errors are JSON too. -w prints the status code after the body.
 curl -s -w '\n%{http_code}\n' http://localhost:3000/api/v1/episodes/99
 

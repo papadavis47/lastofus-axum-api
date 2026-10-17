@@ -367,7 +367,10 @@ async fn pending_migrations_are_reported_without_writing() {
     let db = Db::in_memory().await.unwrap();
     let conn = db.connect().await.unwrap();
 
-    assert_eq!(migrations::pending(&conn).await.unwrap(), [1, 2, 3, 4]);
+    assert_eq!(
+        migrations::pending(&conn).await.unwrap(),
+        [1, 2, 3, 4, 5, 6]
+    );
 
     // `pending` must not create `_migrations`: servers call it on read-only replicas.
     let mut rows = conn
@@ -457,8 +460,12 @@ async fn serves_an_openapi_spec_for_every_route() {
     assert_eq!(
         paths,
         [
+            "/api/v1/characters",
+            "/api/v1/characters/{slug}",
+            "/api/v1/characters/{slug}/episodes",
             "/api/v1/episodes",
             "/api/v1/episodes/{id}",
+            "/api/v1/episodes/{id}/characters",
             "/api/v1/seasons",
             "/api/v1/seasons/{season_number}",
             "/api/v1/seasons/{season_number}/episodes",
@@ -468,7 +475,10 @@ async fn serves_an_openapi_spec_for_every_route() {
 
     // Every documented path is a real route, not a 404.
     for path in paths {
-        let uri = path.replace("{id}", "1").replace("{season_number}", "1");
+        let uri = path
+            .replace("{id}", "1")
+            .replace("{season_number}", "1")
+            .replace("{slug}", "joel-miller");
         let (status, _) = get(&uri).await;
         assert_eq!(status, StatusCode::OK, "{uri}");
     }
@@ -492,7 +502,15 @@ async fn openapi_spec_documents_parameters_and_errors() {
     assert!(get_one["responses"]["404"].is_object());
 
     let schemas = &spec["components"]["schemas"];
-    for name in ["Episode", "Season", "Image", "ExternalIds", "ErrorResponse"] {
+    for name in [
+        "Episode",
+        "Season",
+        "Character",
+        "Role",
+        "Image",
+        "ExternalIds",
+        "ErrorResponse",
+    ] {
         assert!(schemas[name].is_object(), "missing {name} schema");
     }
     // Nullable fields are always sent, so they're required, not optional.
@@ -511,4 +529,201 @@ async fn serves_interactive_docs() {
     let body = response.into_body().collect().await.unwrap().to_bytes();
     let html = std::str::from_utf8(&body).unwrap();
     assert!(html.contains(r#"data-url="/api/v1/openapi.json""#));
+}
+
+/// The slugs in a page of characters, in order.
+fn slugs(body: &Value) -> Vec<&str> {
+    body["data"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|character| character["slug"].as_str().unwrap())
+        .collect()
+}
+
+/// The ids in a page of episodes, in order.
+fn episode_ids(body: &Value) -> Vec<u64> {
+    body["data"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|episode| episode["id"].as_u64().unwrap())
+        .collect()
+}
+
+#[tokio::test]
+async fn lists_characters_alphabetically() {
+    let (status, body) = get("/api/v1/characters?limit=3").await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(slugs(&body), ["abby", "anna", "bill"]);
+    assert_eq!(
+        body["meta"],
+        json!({ "page": 1, "limit": 3, "total": 34, "total_pages": 12 })
+    );
+}
+
+#[tokio::test]
+async fn gets_a_character_by_slug() {
+    let (status, body) = get("/api/v1/characters/joel-miller").await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["data"]["name"], "Joel Miller");
+    assert!(body["data"]["description"].is_string());
+    assert_eq!(body["data"]["image"], Value::Null);
+    assert_eq!(
+        body["data"]["seasons"],
+        json!([
+            { "season": 1, "role": "main", "episode_count": 9 },
+            { "season": 2, "role": "main", "episode_count": 4 }
+        ])
+    );
+
+    // Billing can change between seasons.
+    let (_, body) = get("/api/v1/characters/tommy-miller").await;
+    assert_eq!(body["data"]["seasons"][0]["role"], "guest");
+    assert_eq!(body["data"]["seasons"][1]["role"], "main");
+}
+
+#[tokio::test]
+async fn unknown_character_returns_404() {
+    for uri in [
+        "/api/v1/characters/nobody",
+        "/api/v1/characters/nobody/episodes",
+    ] {
+        let (status, body) = get(uri).await;
+        assert_eq!(status, StatusCode::NOT_FOUND, "{uri}");
+        assert_error(&body, 404, "character_not_found");
+        assert_eq!(
+            body["error"]["message"],
+            "Character \"nobody\" was not found."
+        );
+    }
+}
+
+#[tokio::test]
+async fn filters_characters_by_season_and_role() {
+    let (_, body) = get("/api/v1/characters?role=main").await;
+    assert_eq!(
+        slugs(&body),
+        ["dina", "ellie", "jesse", "joel-miller", "tommy-miller"]
+    );
+
+    // With a season, the role must be the character's billing in that season.
+    let (_, body) = get("/api/v1/characters?season=1&role=main").await;
+    assert_eq!(slugs(&body), ["ellie", "joel-miller"]);
+    let (_, body) = get("/api/v1/characters?season=1&role=recurring").await;
+    assert_eq!(slugs(&body), ["tess"]);
+
+    let (_, body) = get("/api/v1/characters?season=2&limit=100").await;
+    assert_eq!(body["meta"]["total"], 18);
+
+    let (status, body) = get("/api/v1/characters?season=99").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["data"], json!([]));
+    assert_eq!(body["meta"]["total"], 0);
+}
+
+#[tokio::test]
+async fn invalid_character_queries_return_400() {
+    for uri in [
+        "/api/v1/characters?role=extra",
+        "/api/v1/characters?season=one",
+        "/api/v1/characters/joel-miller/episodes?season=-1",
+    ] {
+        let (status, body) = get(uri).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{uri}");
+        assert_error(&body, 400, "invalid_query_parameter");
+    }
+
+    for uri in [
+        "/api/v1/characters?limit=0",
+        "/api/v1/characters/joel-miller/episodes?page=0",
+        "/api/v1/episodes/1/characters?limit=101",
+    ] {
+        let (status, body) = get(uri).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{uri}");
+        assert_error(&body, 400, "invalid_pagination");
+    }
+}
+
+#[tokio::test]
+async fn lists_a_characters_episodes() {
+    let (status, body) = get("/api/v1/characters/tommy-miller/episodes").await;
+
+    assert_eq!(status, StatusCode::OK);
+    // Credited but absent in season 2 episodes 4 and 5 (ids 13 and 14).
+    assert_eq!(episode_ids(&body), [1, 6, 10, 11, 12, 15, 16]);
+    // Full episodes, writers included.
+    assert_eq!(body["data"][0]["title"], "When You're Lost in the Darkness");
+    assert!(body["data"][0]["writers"].is_array());
+
+    let (_, body) = get("/api/v1/characters/tommy-miller/episodes?season=2&limit=2").await;
+    assert_eq!(episode_ids(&body), [10, 11]);
+    assert_eq!(
+        body["meta"],
+        json!({ "page": 1, "limit": 2, "total": 5, "total_pages": 3 })
+    );
+}
+
+#[tokio::test]
+async fn lists_an_episodes_characters() {
+    let (status, body) = get("/api/v1/episodes/6/characters").await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        slugs(&body),
+        [
+            "ellie",
+            "florence",
+            "henry-burrell",
+            "joel-miller",
+            "maria",
+            "marlon",
+            "sarah",
+            "tommy-miller"
+        ]
+    );
+    assert_eq!(body["data"][0]["seasons"][0]["season"], 1);
+
+    // Joel appears uncredited in season 2 episode 5 (id 14); Tommy is credited
+    // but doesn't appear.
+    let (_, body) = get("/api/v1/episodes/14/characters").await;
+    let characters = slugs(&body);
+    assert!(characters.contains(&"joel-miller"));
+    assert!(!characters.contains(&"tommy-miller"));
+}
+
+#[tokio::test]
+async fn episode_characters_validates_the_episode() {
+    let (status, body) = get("/api/v1/episodes/99/characters").await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_error(&body, 404, "episode_not_found");
+
+    let (status, body) = get("/api/v1/episodes/abc/characters").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_error(&body, 400, "invalid_path_parameter");
+}
+
+#[tokio::test]
+async fn character_seasons_match_their_episodes() {
+    let db = test_db().await;
+    let (_, body) = get_with(db.clone(), "/api/v1/characters?limit=100").await;
+    let characters = body["data"].as_array().unwrap();
+    assert_eq!(characters.len(), 34);
+
+    for character in characters {
+        let slug = character["slug"].as_str().unwrap();
+        let seasons = character["seasons"].as_array().unwrap();
+        assert!(!seasons.is_empty(), "{slug} has no seasons");
+
+        let uri = format!("/api/v1/characters/{slug}/episodes?limit=100");
+        let (_, episodes) = get_with(db.clone(), &uri).await;
+        let credited: u64 = seasons
+            .iter()
+            .map(|season| season["episode_count"].as_u64().unwrap())
+            .sum();
+        assert!(seasons.iter().all(|season| season["episode_count"] != 0));
+        assert_eq!(episodes["meta"]["total"], credited, "{slug}");
+    }
 }

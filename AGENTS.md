@@ -1,6 +1,6 @@
 # AGENTS.md
 
-The main source of truth for coding agents (Amp, Claude Code, and others) working in this repository. Read this first, then `docs/PROJECT_PLAN.md` for the long-term vision.
+The main source of truth for coding agents (Amp, Claude Code, and others) working in this repository. Read this first, then [`PLAN.md`](PLAN.md) for the ordered next steps and `docs/PROJECT_PLAN.md` for the long-term vision.
 
 _Last updated: 2026-10-16_
 
@@ -18,7 +18,7 @@ The project is not affiliated with HBO, Sony, or Naughty Dog. Do not add copyrig
 | 2 — Static API prototype | ✅ Done |
 | 3 — Turso persistence | ✅ Done |
 | 4 — Developer experience (OpenAPI, CORS, examples) | ✅ Done |
-| 5 — Content expansion (characters, cast, search, images) | **Next** |
+| 5 — Content expansion (characters, cast, search, images) | 🚧 **In progress** (characters done; cast next, see `PLAN.md`) |
 | 6 — Deployment | Not started |
 
 ### Live endpoints
@@ -31,6 +31,10 @@ The project is not affiliated with HBO, Sony, or Naughty Dog. Do not add copyrig
 | `GET /api/v1/seasons/{season_number}/episodes` | Paginated; `404` if the season is missing |
 | `GET /api/v1/episodes` | Paginated; `?season=<number>` filter (an unknown season gives an empty page, not a 404) |
 | `GET /api/v1/episodes/{id}` | `404 episode_not_found` if missing |
+| `GET /api/v1/episodes/{id}/characters` | Paginated, alphabetical; `404 episode_not_found` if the episode is missing |
+| `GET /api/v1/characters` | Paginated, alphabetical; `?season=<number>` and `?role=main\|recurring\|guest` (with `season`, the billing in that season; an unknown role is a `400`) |
+| `GET /api/v1/characters/{slug}` | `404 character_not_found` if missing |
+| `GET /api/v1/characters/{slug}/episodes` | Paginated, broadcast order; `?season=` filter; `404` if the character is missing |
 | `GET /api/v1/openapi.json` | OpenAPI 3.1 spec for every route above (not for itself or `/docs`) |
 | `GET /api/v1/docs` | Interactive Scalar docs (HTML; loads `@scalar/api-reference` pinned on jsDelivr) |
 | anything else | `404 route_not_found` |
@@ -48,6 +52,9 @@ Pagination on every collection: `?page=` (≥ 1, default 1) and `?limit=` (1–1
 - `migrations/0003_images_and_external_ids.sql` adds an `images` table (URL, size, alt text, and licence/attribution columns) that `seasons.image_id` and `episodes.image_id` point to, and `tmdb_id`, `imdb_id` and `wikidata_id` columns on both. It drops `episodes.image_url`. No images are licensed yet, so every `image` is `null`.
 - `migrations/0004_seed_external_ids.sql` fills in Wikidata ids for both seasons and Wikidata and IMDb ids for all 16 episodes. They were taken from Wikidata (CC0) on 2026-10-16, and the IMDb ids were cross-checked against IMDb's title lookup. Seasons have no `imdb` id, because IMDb doesn't have season ids. `tmdb` is `null` everywhere: TMDB's integer ids can't be verified without an API key. Clients can reach TMDB with series id `100088` plus the season and episode numbers. Sources for these ids are recorded in the migration's header comment, not in `source_*` (those columns describe the Wikipedia facts).
 - Seasons and episodes return `"image": null | {url, width, height, alt, attribution: {text, creator, license, license_url, source_url}}` and `"external_ids": {tmdb, imdb, wikidata}`.
+- `migrations/0005_create_characters.sql` adds `characters` (slug, name, original description, `image_id`, `source_*`), `character_seasons` (billing per season: `main`/`recurring`/`guest`, with a CHECK) and `episode_characters`. `0006_seed_characters.sql` seeds 34 characters, checked against Wikipedia on 2026-10-16: the characters article's overview table for which characters and which episodes, and the season articles' cast sections for billing. The seed asserts (in its generator) that the two agree; the integration test `character_seasons_match_their_episodes` keeps them in step.
+- Episode links follow on-screen credits, minus "credited but does not appear" (Tommy S2E4–5, Jesse S2E4) and plus uncredited appearances (Joel S2E5). Yara and Lev are season 3 only and left out. Names follow the season articles (`ellie`, not `ellie-williams`).
+- Characters return `{id, slug, name, description, seasons: [{season, role, episode_count}], image}`. `seasons` is loaded in one query (`load_seasons`), like episode `writers`.
 - Season 3 is expected in 2027. Add it in a new migration once episodes air.
 
 ## Database (Turso)
@@ -97,13 +104,16 @@ src/error.rs           AppError {NotFound, BadRequest, Internal} → structured 
 src/extract.rs         ApiPath<T> / ApiQuery<T>: Path/Query whose rejections become AppError 400s
 src/response.rs        ApiResponse<T>, Paginated<T>, PageMeta, Pagination (validate, offset, page)
 src/state.rs           AppState { db: Db }
-src/models/            Season, Episode: Serialize + ToSchema structs with FROM + COLUMNS + from_row;
+src/models/            Season, Episode, Character (+ CharacterSeason, Role): Serialize + ToSchema structs with FROM + COLUMNS + from_row;
                        image.rs has Image/Attribution/ExternalIds and the image_columns! macro
-src/routes/            health.rs, seasons.rs, episodes.rs: handlers with their SQL inline
+src/routes/            health.rs, seasons.rs, episodes.rs, characters.rs: handlers with their SQL inline;
+                       episodes::fetch_page(EpisodeQuery) and characters::fetch_page(CharacterQuery) are shared
 migrations/            0001 schema, 0002 seed (verified data), 0003 images + external ids schema,
-                       0004 external id data
+                       0004 external id data, 0005 characters schema, 0006 character data
 tests/api.rs           Integration tests: fresh migrated in-memory Db per test, router via oneshot
 README.md              Human-facing overview: quick start, endpoints, configuration
+PLAN.md                Ordered next steps and recent decisions
+.github/workflows/ci.yml  CI: fmt, clippy, test on stable; cargo check on the MSRV (1.90)
 docs/PROJECT_PLAN.md   Vision, data model, API conventions, roadmap
 docs/USING_THE_API.md  Client-facing behaviour: shapes, pagination, errors, spoilers, rate limits
 docs/EXAMPLES.md       curl, JS fetch, Python and Rust clients (all run against a live server)
@@ -114,8 +124,8 @@ docs/SOURCES.md        Data sources, attribution and reuse
 ## Conventions to follow
 
 - **Responses.** A single resource is `{"data": ...}` (`ApiResponse`). A collection is `{"data": [...], "meta": {page, limit, total, total_pages}}` (`Paginated`, built with `pagination.page(rows, total)`). Collections are always paginated.
-- **Errors.** Return `Result<_, AppError>` from handlers. `?` on a `turso::Error` logs it and returns a generic `500 internal_error`, so never put database details in a response. Error codes are `snake_case` (`episode_not_found`, `invalid_pagination`, `invalid_path_parameter`, `invalid_query_parameter`, `route_not_found`, `internal_error`). Messages are full sentences, e.g. `"Episode 99 was not found."`.
-- **SQL.** Write explicit SQL in the handler (or a small shared function like `episodes::fetch_page`). Always bind values as `?1, ?2…` parameters and never interpolate input; the only `format!` in SQL is for `Model::COLUMNS` constants. Filter and paginate in SQL (`LIMIT`/`OFFSET` plus a `COUNT(*)`). Avoid N+1 queries; see `load_writers`, which passes ids as a JSON array to `json_each`.
+- **Errors.** Return `Result<_, AppError>` from handlers. `?` on a `turso::Error` logs it and returns a generic `500 internal_error`, so never put database details in a response. Error codes are `snake_case` (`episode_not_found`, `character_not_found`, `invalid_pagination`, `invalid_path_parameter`, `invalid_query_parameter`, `route_not_found`, `internal_error`). Messages are full sentences, e.g. `"Episode 99 was not found."`.
+- **SQL.** Write explicit SQL in the handler (or a small shared function like `episodes::fetch_page`). Always bind values as `?1, ?2…` parameters and never interpolate input; the only `format!` in SQL is for `Model::COLUMNS` constants. Filter and paginate in SQL (`LIMIT`/`OFFSET` plus a `COUNT(*)`). Avoid N+1 queries; see `load_writers` and `load_seasons`, which pass ids as one JSON array (`db::json_ids`) to `json_each`. Optional filters use `(?1 IS NULL OR ...)`, and shared page queries take a small `*Query` struct (`EpisodeQuery`, `CharacterQuery`).
 - **Models.** Integers are `i64` and reals `f64`, matching SQLite. Nullable columns are `Option<T>`. Each model has a `COLUMNS` constant and a `from_row` that reads columns in the same order. Models with an image also have a `FROM` constant (the table plus `LEFT JOIN images i`); select `COLUMNS` from it so the image columns resolve.
 - **Images.** Only add images whose licence allows redistribution (Wikimedia Commons, public domain, or written permission; see "Image policy" in `docs/PROJECT_PLAN.md`). Never add HBO stills, posters or screenshots, and never pass TMDB images through the API: TMDB's licence can't be sublicensed. Fill in `external_ids` instead, so clients can fetch artwork themselves. Every `images` row needs `source_page_url`, `license_name` and `attribution_text`. Add images in new migrations.
 - **Extractors.** Use `ApiPath` and `ApiQuery` (not Axum's `Path` and `Query`) so bad input gets a structured 400. Path ids and query numbers are `u32`, which rejects negatives. A handler can take several `ApiQuery` extractors, e.g. a filter struct plus `Pagination`. Don't use `#[serde(flatten)]` with query structs: flatten breaks numeric parsing in `serde_urlencoded`.
@@ -137,20 +147,21 @@ cargo clippy --all-targets -- -D warnings
 curl -s 'localhost:3000/api/v1/episodes?season=2' | jq
 ```
 
-Run `cargo fmt`, `cargo clippy --all-targets -- -D warnings`, and `cargo test` before every commit. All three must pass. The first build compiles the Turso engine and takes a few minutes.
+Run `cargo fmt`, `cargo clippy --all-targets -- -D warnings`, and `cargo test` before every commit. All three must pass; CI runs the same checks (with `--locked`) on every pull request, plus `cargo check` on Rust 1.90. Keep `rust-version` in `Cargo.toml` and the MSRV job in `ci.yml` in step when a dependency raises it. The first build compiles the Turso engine and takes a few minutes.
 
-## Next steps (Phase 5: content expansion)
+## Next steps
 
-1. **Characters and cast:** tables, seed migration with sources, `ToSchema` models, and documented endpoints (`/characters`, `/characters/{slug}`, `/cast`, `/cast/{slug}`, `/episodes/{id}/characters`).
-2. **Provenance:** expose `source_name`, `source_url` and `last_verified_at` (e.g. a `source` object), and update `docs/SOURCES.md`.
-3. **Licensed images**, search, and more verified data (season 3 once it airs).
+[`PLAN.md`](PLAN.md) has the ordered list, with design notes. In short:
 
-Later:
-- A periodic `pull` for synced replicas.
-- A container image and deployment (Phase 6). Once there's a public URL, add it to the OpenAPI `servers` list and the docs.
+1. **Cast members** (`cast_members`, `character_cast` per season, `/cast` endpoints, `portrayed_by` on characters) and the first licensed images (Commons photos of cast).
+2. **Episode filters** such as `?director=`, ideally via a `people` table for crew.
+3. **Provenance:** a `source` object on every resource.
+4. **Search:** `GET /api/v1/search?q=`.
+5. More characters (one-off guests), then season 3 when it airs.
+6. Deployment (Phase 6), including a periodic `pull` for synced replicas.
 
-When an endpoint or behaviour changes, keep `docs/USING_THE_API.md`, `docs/EXAMPLES.md` and `README.md` in step with it.
+When an endpoint or behaviour changes, keep `docs/USING_THE_API.md`, `docs/EXAMPLES.md`, `docs/SOURCES.md`, `README.md` and `PLAN.md` in step with it.
 
 ## History
 
-Development started with Amp (the `.agents/` scripts are its orb setup/resume hooks) and Delta, and continued with Claude Code. Commits so far: cargo scaffold → Amp orb scripts → project plan → Phase 1 foundation → Phase 2 prototype → docs (AGENTS.md, CLAUDE.md) → Phase 3 Turso persistence → images and external ids → CORS → OpenAPI, examples and behaviour docs (Phase 4).
+Development started with Amp (the `.agents/` scripts are its orb setup/resume hooks) and Delta, and continued with Claude Code. Commits so far: cargo scaffold → Amp orb scripts → project plan → Phase 1 foundation → Phase 2 prototype → docs (AGENTS.md, CLAUDE.md) → Phase 3 Turso persistence → images and external ids → CORS → OpenAPI, examples and behaviour docs (Phase 4) → CI → characters and episode links (Phase 5).

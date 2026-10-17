@@ -18,6 +18,7 @@ use utoipa::OpenApi;
     tags(
         (name = "seasons", description = "Seasons of the series and their episodes."),
         (name = "episodes", description = "Every episode, in broadcast order."),
+        (name = "characters", description = "Characters, their billing in each season, and the episodes they're credited in."),
         (name = "health", description = "Service status."),
     ),
 )]

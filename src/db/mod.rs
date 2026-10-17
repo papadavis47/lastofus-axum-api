@@ -100,3 +100,11 @@ pub async fn count(conn: &Connection, sql: &str, params: impl IntoParams) -> tur
     let total = query_optional(conn, sql, params, |row| row.get::<i64>(0)).await?;
     Ok(total.unwrap_or(0).try_into().unwrap_or(0))
 }
+
+/// Formats ids as a JSON array, e.g. `[1,2,3]`, to bind as one parameter and
+/// expand with `IN (SELECT value FROM json_each(?1))` instead of building
+/// `IN (?, ?, ...)`.
+pub fn json_ids(ids: impl IntoIterator<Item = i64>) -> String {
+    let ids: Vec<String> = ids.into_iter().map(|id| id.to_string()).collect();
+    format!("[{}]", ids.join(","))
+}
